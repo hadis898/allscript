@@ -82,13 +82,8 @@ check_root() {
 show_menu() {
     clear
     echo -e "${GREEN}========== 系统工具管理脚本 ==========${PLAIN}"
-    echo -e "${GREEN}1. PVE直通配置 + 硬件监控${PLAIN}"
-    echo -e "${GREEN}2. PVE一键升级 + LXC源配置${PLAIN}"
-    echo -e "${GREEN}3. SSH & BBR配置 + Root登录设置${PLAIN}"
-    echo -e "${GREEN}4. 多系统SSH一键开启${PLAIN}"
-    echo -e "${GREEN}5. 黑群晖CPU识别修复${PLAIN}"
-    echo -e "${GREEN}6. BBR-WARP设置${PLAIN}"
-    echo -e "${GREEN}7. 系统交换分区快速配置${PLAIN}"
+    echo -e "${GREEN}1. BBR-WARP设置${PLAIN}"
+    echo -e "${GREEN}2. 开启BBR+root登录+密码设置${PLAIN}"
     echo -e "${GREEN}0. 退出脚本${PLAIN}"
     echo -e "${GREEN}=====================================${PLAIN}"
 }
@@ -104,25 +99,10 @@ main() {
 
         case $operation in
             1)
-                download_script "pve.sh"
-                ;;
-            2)
-                download_script "pvehy.sh"
-                ;;
-            3)
-                download_script "lang.sh"
-                ;;
-            4)
-                download_script "ssh.sh"
-                ;;
-            5)
-                download_script "ch_cpuinfo_cn.sh"
-                ;;
-            6)
                 download_script "bbr-warp.sh"
                 ;;
-            7)
-                download_script "swap.sh"
+            2)
+                download_script "bbr-root.sh"
                 ;;
             0)
                 log_info "感谢使用，再见！"
