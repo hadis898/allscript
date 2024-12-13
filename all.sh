@@ -67,7 +67,7 @@ main() {
                 wget -qO ch_cpuinfo_cn.sh "${GITHUB_PROXY}/ch_cpuinfo_cn.sh" && sudo bash ch_cpuinfo_cn.sh
                 ;;
             6)
-                execute_script "https://testingcf.jsdelivr.net/gh/eooce/ssh_tool@main/ssh_tool.sh"
+                 bash -c "$(curl -fsSL https://testingcf.jsdelivr.net/gh/eooce/ssh_tool@main/ssh_tool.sh)"
                 ;;
             7)
                 execute_script "swap.sh"
