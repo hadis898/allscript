@@ -34,7 +34,7 @@ case $operation in
         bash -c "$(curl -fsSL https://ghproxy.com/https://raw.githubusercontent.com/shidahuilang/pve/main/ssh.sh)"
         ;;
     5)
-        wget -qO ch_cpuinfo_cn.sh https://ghproxy.com/https://raw.githubusercontent.com/shidahuilang/pve/main/ch_cpuinfo_cn.sh && sudo bash ch_cpuinfo_cn.sh
+        curl -fsSL https://testingcf.jsdelivr.net/gh/eooce/ssh_tool@main/ssh_tool.sh -o ssh_tool.sh && chmod +x ssh_tool.sh && ./ssh_tool.sh
         ;;
     6)
         bash -c "$(curl -fsSL https://testingcf.jsdelivr.net/gh/eooce/ssh_tool@main/ssh_tool.sh)"
