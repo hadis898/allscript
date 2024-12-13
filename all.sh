@@ -12,7 +12,7 @@ readonly YELLOW='\033[0;33m'
 readonly PLAIN='\033[0m'
 
 # 定义GitHub代理
-readonly GITHUB_PROXY='https://gh.7761.cf/https://github.com/hadis898/allscript'
+readonly GITHUB_PROXY='https://ghp.ci/https://raw.githubusercontent.com/hadis898/allscript/main'
 
 # 检查root权限
 check_root() {
