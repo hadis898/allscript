@@ -1,91 +1,49 @@
 #!/usr/bin/env bash
 
-# 系统工具一键管理脚本
-# 作者：大灰狼
-# 版本：1.0.0
-# 功能：提供PVE、SSH、系统工具的快速配置
+# 颜色
+red='\033[0;31m'
+green='\033[0;32m'
+yellow='\033[0;33m'
+plain='\033[0m'
 
-# 定义颜色常量
-readonly RED='\033[0;31m'
-readonly GREEN='\033[0;32m'
-readonly YELLOW='\033[0;33m'
-readonly PLAIN='\033[0m'
+# 使用root运行
+[[ $EUID -ne 0 ]] && echo -e "[${red}Error${plain}] 请用root权限运行脚本!" && exit 1
 
-# 定义GitHub代理
-readonly GITHUB_PROXY='https://ghproxy.com/https://raw.githubusercontent.com/shidahuilang/pve/main'
+# 选择操作
+echo -e "${green}请选择您要执行的操作：${plain}"
+echo -e "${green}1. PVE开启直通+CPU硬盘温度显示,风扇转速+一键开启换源，去订阅+CPU睿频模式选择${plain}"
+echo -e "${green}2. PVE一键升级PVE，lxc换源，去掉无效订阅${plain}"
+echo -e "${green}3. 开启ssh+BBR+root登录+密码设置(默认密码：dahuilang)${plain}"
+echo -e "${green}4. (centos、ubuntu、debian、alpine)一键开启SSH${plain}"
+echo -e "${green}5. 黑群晖cpu正确识别${plain}"
+echo -e "${green}6. 黑群晖自动挂载洗白(挂载目录/tmp/boot)${plain}"
+echo -e "${green}7. 一键设置交换虚拟分区${plain}"
+read -p "请输入要执行的操作编号：" operation
 
-# 检查root权限
-check_root() {
-    [[ $EUID -ne 0 ]] && {
-        echo -e "[${RED}错误${PLAIN}] 请使用root权限运行脚本!"
-        exit 1
-    }
-}
+case $operation in
+    1)
+        bash -c "$(curl -fsSL https://ghproxy.com/https://raw.githubusercontent.com/shidahuilang/pve/main/pve.sh)"
+        ;;
+    2)
+        bash -c "$(curl -fsSL https://ghproxy.com/https://raw.githubusercontent.com/shidahuilang/pve/main/pvehy.sh)"
+        ;;
+    3)
+        bash -c "$(curl -fsSL https://raw.githubusercontent.com/shidahuilang/pve/main/lang.sh)"
+        ;;
+    4)
+        bash -c "$(curl -fsSL https://ghproxy.com/https://raw.githubusercontent.com/shidahuilang/pve/main/ssh.sh)"
+        ;;
+    5)
+        wget -qO ch_cpuinfo_cn.sh https://ghproxy.com/https://raw.githubusercontent.com/shidahuilang/pve/main/ch_cpuinfo_cn.sh && sudo bash ch_cpuinfo_cn.sh
+        ;;
+    6)
+        bash -c "$(curl -fsSL https://testingcf.jsdelivr.net/gh/eooce/ssh_tool@main/ssh_tool.sh)"
+        ;;
+    7)
+        bash -c "$(curl -fsSL https://ghproxy.com/https://raw.githubusercontent.com/shidahuilang/pve/main/swap.sh)"
+        ;;
+    *)
+        echo -e "${red}输入的操作编号无效，请重新运行脚本并输入正确的编号。${plain}"
+        ;;
+esac
 
-# 显示菜单
-show_menu() {
-    echo -e "${GREEN}========== 系统工具管理脚本 ==========${PLAIN}"
-    echo -e "${GREEN}1. PVE直通配置 + 硬件监控${PLAIN}"
-    echo -e "${GREEN}2. PVE一键升级 + LXC源配置${PLAIN}"
-    echo -e "${GREEN}3. SSH & BBR配置 + Root登录设置${PLAIN}"
-    echo -e "${GREEN}4. 多系统SSH一键开启${PLAIN}"
-    echo -e "${GREEN}5. 黑群晖CPU识别修复${PLAIN}"
-    echo -e "${GREEN}6. 黑群晖自动挂载白群晖${PLAIN}"
-    echo -e "${GREEN}7. 系统交换分区快速配置${PLAIN}"
-    echo -e "${GREEN}0. 退出脚本${PLAIN}"
-    echo -e "${GREEN}=====================================${PLAIN}"
-}
-
-# 执行脚本
-execute_script() {
-    local script_name=$1
-    bash -c "$(curl -fsSL ${GITHUB_PROXY}/${script_name})"
-}
-
-# 主程序
-main() {
-    check_root
-
-    while true; do
-        show_menu
-        read -p "请输入要执行的操作编号: " operation
-
-        case $operation in
-            1)
-                execute_script "pve.sh"
-                ;;
-            2)
-                execute_script "pvehy.sh"
-                ;;
-            3)
-                execute_script "lang.sh"
-                ;;
-            4)
-                execute_script "ssh.sh"
-                ;;
-            5)
-                wget -qO ch_cpuinfo_cn.sh "${GITHUB_PROXY}/ch_cpuinfo_cn.sh" && sudo bash ch_cpuinfo_cn.sh
-                ;;
-            6)
-                 bash -c "$(curl -fsSL https://testingcf.jsdelivr.net/gh/eooce/ssh_tool@main/ssh_tool.sh)"
-                ;;
-            7)
-                execute_script "swap.sh"
-                ;;
-            0)
-                echo -e "${GREEN}感谢使用，再见！${PLAIN}"
-                exit 0
-                ;;
-            *)
-                echo -e "${RED}输入的操作编号无效，请重新输入。${PLAIN}"
-                sleep 2
-                ;;
-        esac
-
-        read -p "是否继续? [Y/n]: " continue_choice
-        [[ $continue_choice == [nN] ]] && break
-    done
-}
-
-# 运行主程序
-main
