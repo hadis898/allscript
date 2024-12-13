@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # 系统工具一键管理脚本
-# 作者：大灰狼
+# 作者：哈迪斯
 # 版本：1.0.0
 # 功能：提供PVE、SSH、系统工具的快速配置
 
@@ -12,7 +12,7 @@ readonly YELLOW='\033[0;33m'
 readonly PLAIN='\033[0m'
 
 # 定义GitHub代理
-readonly GITHUB_PROXY='https://gh.7761.cf/https://github.com/shidahuilang/pve'
+readonly GITHUB_PROXY='https://gh.7761.cf/https://github.com/hadis898/allscript'
 
 # 检查root权限
 check_root() {
@@ -30,7 +30,7 @@ show_menu() {
     echo -e "${GREEN}3. SSH & BBR配置 + Root登录设置${PLAIN}"
     echo -e "${GREEN}4. 多系统SSH一键开启${PLAIN}"
     echo -e "${GREEN}5. 黑群晖CPU识别修复${PLAIN}"
-    echo -e "${GREEN}6. 黑群晖自动挂载白群晖${PLAIN}"
+    echo -e "${GREEN}6. BBR-WARP设置${PLAIN}"
     echo -e "${GREEN}7. 系统交换分区快速配置${PLAIN}"
     echo -e "${GREEN}0. 退出脚本${PLAIN}"
     echo -e "${GREEN}=====================================${PLAIN}"
@@ -67,7 +67,7 @@ main() {
                 wget -qO ch_cpuinfo_cn.sh "${GITHUB_PROXY}/ch_cpuinfo_cn.sh" && sudo bash ch_cpuinfo_cn.sh
                 ;;
             6)
-                execute_script "arpl.sh"
+                execute_script "bbr-warp.sh"
                 ;;
             7)
                 execute_script "swap.sh"
