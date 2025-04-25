@@ -118,7 +118,7 @@ show_menu() {
     echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}4.${NC} 禁用SSH日志记录                                       ${BOLD}${CYAN}║${NC}"
     echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}5.${NC} 永久禁用命令历史记录功能                              ${BOLD}${CYAN}║${NC}"
     echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}6.${NC} 清理临时文件和缓存                                    ${BOLD}${CYAN}║${NC}"
-    echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}7.${NC} 一键执行所有清理操作（执行后会断开客户端，安全退出）        ${BOLD}${CYAN}║${NC}"
+    echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}7.${NC} 一键执行所有清理操作（执行后会断开客户端）               ${BOLD}${CYAN}║${NC}"
     echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}0.${NC} 退出程序                                              ${BOLD}${CYAN}║${NC}"
     echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
     
