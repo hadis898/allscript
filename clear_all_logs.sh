@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# 一键清除Linux所有操作痕迹 v2025.04.25
+# 一键清除Linux所有操作痕迹
 # 高级系统痕迹清理工具
 # 使用方法：sudo ./clear_all_logs.sh
 # ============================================================
@@ -26,7 +26,7 @@ show_logo() {
     echo " ╚██████╗███████╗███████╗██║  ██║██║  ██║       ██║   ██║  ██║██║  ██║╚██████╗███████╗"
     echo "  ╚═════╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝       ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚══════╝"
     echo -e "${NC}"
-    echo -e "${CYAN}${BOLD}                       高级系统痕迹清理工具 v2025.04.25${NC}"
+    echo -e "${CYAN}${BOLD}                   一键清除Linux所有操作痕迹 v2025.04.25${NC}"
     echo -e "${YELLOW}                       安全、高效、无痕迹操作${NC}\n"
 }
 
@@ -118,7 +118,7 @@ show_menu() {
     echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}4.${NC} 禁用SSH日志记录                                       ${BOLD}${CYAN}║${NC}"
     echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}5.${NC} 永久禁用命令历史记录功能                              ${BOLD}${CYAN}║${NC}"
     echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}6.${NC} 清理临时文件和缓存                                    ${BOLD}${CYAN}║${NC}"
-    echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}7.${NC} 一键执行所有清理操作                                  ${BOLD}${CYAN}║${NC}"
+    echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}7.${NC} 一键执行所有清理操作（执行后会断开客户端，安全退出）        ${BOLD}${CYAN}║${NC}"
     echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}0.${NC} 退出程序                                              ${BOLD}${CYAN}║${NC}"
     echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
     
