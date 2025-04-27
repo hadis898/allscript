@@ -45,8 +45,8 @@ show_logo() {
     echo -e "${NC}"
     
     echo -e "${YELLOW}${BOLD}┌${horizontal_line}┐${NC}"
-    echo -e "${YELLOW}${BOLD}│${CYAN}${BOLD}                 Linux系统痕迹清理与管理工具 ${VERSION}                 ${YELLOW}│${NC}"
-    echo -e "${YELLOW}${BOLD}│${GREEN}                       安全、高效、无痕迹操作                        ${YELLOW}│${NC}"
+    echo -e "${YELLOW}${BOLD}│${CYAN}${BOLD}                 Linux系统痕迹清理与管理工具 ${VERSION}              ${YELLOW}│${NC}"
+    echo -e "${YELLOW}${BOLD}│${GREEN}                       安全、高效、无痕迹操作                         ${YELLOW}│${NC}"
     echo -e "${YELLOW}${BOLD}└${horizontal_line}┘${NC}\n"
 }
 
@@ -146,43 +146,35 @@ confirm() {
 
 # 主菜单函数
 show_menu() {
-    local width=70
-    local title="【 Linux系统痕迹清理与管理工具 】"
-    local title_padding=$(( (width - ${#title}) / 2 ))
+    local title="Linux系统痕迹清理与管理工具"
     
-    local horizontal_line=$(repeat_char "─" $width)
-    local title_space_prefix=$(repeat_char " " $title_padding)
-    
-    echo -e "\n${BOLD}${CYAN}${horizontal_line}${NC}"
-    echo -e "${MAGENTA}${BOLD}${title_space_prefix}${title}${title_space_prefix}${NC}"
-    echo -e "${BOLD}${CYAN}${horizontal_line}${NC}"
+    echo -e "\n${MAGENTA}${BOLD}                 ${title}                 ${NC}"
     
     # 清理选项部分
-    echo -e "${YELLOW}${BOLD}┌─────────────────── ${GREEN}清理选项 ${YELLOW}────────────────────┐${NC}"
+    echo -e "\n${GREEN}清理选项${NC}"
     echo -e ""
-    echo -e "  ${MAGENTA}1.${NC} 清除命令历史及bash记录        ${CYAN}# 删除所有用户的命令历史${NC}"
-    echo -e "  ${MAGENTA}2.${NC} 清除登录日志和认证记录        ${CYAN}# 清空wtmp/btmp/lastlog等${NC}"
-    echo -e "  ${MAGENTA}3.${NC} 清除系统日志与journald记录    ${CYAN}# 清空系统日志目录${NC}"
-    echo -e "  ${MAGENTA}4.${NC} 清理临时文件和缓存            ${CYAN}# 清理临时文件与包管理缓存${NC}"
-    echo -e "  ${MAGENTA}5.${NC} 一键执行所有清理操作          ${CYAN}# 执行所有清理与禁用功能${NC}"
+    echo -e "  ${MAGENTA}1.${NC} 清除命令历史及bash记录"
+    echo -e "  ${MAGENTA}2.${NC} 清除登录日志和认证记录"
+    echo -e "  ${MAGENTA}3.${NC} 清除系统日志与journald记录"
+    echo -e "  ${MAGENTA}4.${NC} 清理临时文件和缓存"
+    echo -e "  ${MAGENTA}5.${NC} 一键执行所有清理操作"
     echo -e ""
     
     # 禁用选项部分
-    echo -e "${YELLOW}${BOLD}├─────────────────── ${GREEN}禁用选项 ${YELLOW}────────────────────┤${NC}"
+    echo -e "${GREEN}禁用选项${NC}"
     echo -e ""
-    echo -e "  ${MAGENTA}6.${NC} 禁用SSH日志记录              ${CYAN}# 防止SSH操作被记录${NC}"
-    echo -e "  ${MAGENTA}7.${NC} 永久禁用命令历史记录功能      ${CYAN}# 系统级禁用历史记录${NC}"
+    echo -e "  ${MAGENTA}6.${NC} 禁用SSH日志记录"
+    echo -e "  ${MAGENTA}7.${NC} 永久禁用命令历史记录功能"
     echo -e ""
     
     # 恢复选项部分
-    echo -e "${YELLOW}${BOLD}├─────────────────── ${GREEN}恢复选项 ${YELLOW}────────────────────┤${NC}"
+    echo -e "${GREEN}恢复选项${NC}"
     echo -e ""
-    echo -e "  ${MAGENTA}8.${NC} 恢复SSH日志记录功能          ${CYAN}# 恢复SSH日志记录${NC}"
-    echo -e "  ${MAGENTA}9.${NC} 恢复命令历史记录功能          ${CYAN}# 恢复历史记录功能${NC}"
+    echo -e "  ${MAGENTA}8.${NC} 恢复SSH日志记录功能"
+    echo -e "  ${MAGENTA}9.${NC} 恢复命令历史记录功能"
     echo -e ""
-    echo -e "  ${MAGENTA}0.${NC} 退出程序                    ${CYAN}# 退出脚本${NC}"
+    echo -e "  ${MAGENTA}0.${NC} 退出程序"
     echo -e ""
-    echo -e "${YELLOW}${BOLD}└──────────────────────────────────────────────────┘${NC}"
     
     echo -ne "${CYAN}请选择操作选项 ${YELLOW}[0-9]${NC}: "
 }
