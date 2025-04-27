@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
-# 一键清除Linux所有操作痕迹 v2025.04.25
-# 高级系统痕迹清理工具
+# 一键清除Linux所有操作痕迹 v2025.04.27
+# By Uyiosa Idahosa
 # 使用方法：sudo ./clear_all_logs.sh
 # ============================================================
 
@@ -26,7 +26,7 @@ show_logo() {
     echo " ╚██████╗███████╗███████╗██║  ██║██║  ██║       ██║   ██║  ██║██║  ██║╚██████╗███████╗"
     echo "  ╚═════╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝       ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚══════╝"
     echo -e "${NC}"
-    echo -e "${CYAN}${BOLD}                       高级系统痕迹清理工具 v2025.04.25${NC}"
+    echo -e "${CYAN}${BOLD}                  一键清除Linux所有操作痕迹 v2025.04.27${NC}"
     echo -e "${YELLOW}                       安全、高效、无痕迹操作${NC}\n"
 }
 
@@ -118,10 +118,13 @@ show_menu() {
     echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}5.${NC} 永久禁用命令历史记录功能                              ${BOLD}${CYAN}║${NC}"
     echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}6.${NC} 清理临时文件和缓存                                    ${BOLD}${CYAN}║${NC}"
     echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}7.${NC} 一键执行所有清理操作                                  ${BOLD}${CYAN}║${NC}"
+    echo -e "${BOLD}${CYAN}║${NC}                【 恢复功能选项 】                                  ${BOLD}${CYAN}║${NC}"
+    echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}8.${NC} 恢复SSH日志记录功能                                   ${BOLD}${CYAN}║${NC}"
+    echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}9.${NC} 恢复命令历史记录功能                                  ${BOLD}${CYAN}║${NC}"
     echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}0.${NC} 退出程序                                              ${BOLD}${CYAN}║${NC}"
     echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
     
-    echo -e "${YELLOW}请选择操作 [0-7]: ${NC}"
+    echo -e "${YELLOW}请选择操作 [0-9]: ${NC}"
 }
 
 # 清除命令历史函数
@@ -226,8 +229,10 @@ clear_system_logs() {
 disable_ssh_logs() {
     run_silent "正在禁用SSH日志" bash -c '
         if [ -f "/etc/ssh/sshd_config" ]; then
-            # 备份原始配置
-            cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak 2>/dev/null
+            # 备份原始配置(如果备份不存在)
+            if [ ! -f "/etc/ssh/sshd_config.original" ]; then
+                cp /etc/ssh/sshd_config /etc/ssh/sshd_config.original 2>/dev/null
+            fi
             
             # 修改SSH配置
             sed -i "s/^#*LogLevel.*/LogLevel QUIET/" /etc/ssh/sshd_config
@@ -251,6 +256,35 @@ disable_ssh_logs() {
     '
 }
 
+# 恢复SSH日志记录功能
+restore_ssh_logs() {
+    run_silent "恢复SSH日志记录功能" bash -c '
+        # 检查是否存在原始备份
+        if [ -f "/etc/ssh/sshd_config.original" ]; then
+            # 恢复原始备份
+            cp /etc/ssh/sshd_config.original /etc/ssh/sshd_config 2>/dev/null
+            echo "已恢复SSH原始配置" >&2
+        else
+            # 如果没有原始备份，尝试修改当前配置
+            if [ -f "/etc/ssh/sshd_config" ]; then
+                # 修改到默认日志级别
+                sed -i "s/^LogLevel QUIET/LogLevel INFO/" /etc/ssh/sshd_config
+                sed -i "s/^#*SyslogFacility.*/SyslogFacility AUTH/" /etc/ssh/sshd_config
+            else
+                echo "SSH配置文件不存在" >&2
+                exit 1
+            fi
+        fi
+        
+        # 重启SSH服务
+        if command -v service >/dev/null 2>&1; then
+            service sshd restart >/dev/null 2>&1 || service ssh restart >/dev/null 2>&1
+        elif command -v systemctl >/dev/null 2>&1; then
+            systemctl restart sshd >/dev/null 2>&1 || systemctl restart ssh >/dev/null 2>&1
+        fi
+    '
+}
+
 # 永久禁用历史记录
 disable_history_permanently() {
     run_silent "永久禁用命令历史记录" bash -c '
@@ -259,10 +293,20 @@ disable_history_permanently() {
             # 确保目录存在
             mkdir -p $(dirname "$profile") 2>/dev/null
             
+            # 备份原始配置(如果文件存在且备份不存在)
+            if [ -f "$profile" ] && [ ! -f "${profile}.original" ]; then
+                cp "$profile" "${profile}.original" 2>/dev/null
+            fi
+            
             # 移除任何现有的HISTSIZE设置
             if [ -f "$profile" ]; then
                 sed -i "/HISTSIZE=/d" "$profile" 2>/dev/null
                 sed -i "/HISTFILESIZE=/d" "$profile" 2>/dev/null
+                sed -i "/HISTLOG=/d" "$profile" 2>/dev/null
+                sed -i "/unset HISTFILE/d" "$profile" 2>/dev/null
+                sed -i "/readonly HISTFILE/d" "$profile" 2>/dev/null
+                sed -i "/readonly HISTSIZE/d" "$profile" 2>/dev/null
+                sed -i "/readonly HISTFILESIZE/d" "$profile" 2>/dev/null
             fi
             
             # 添加禁用历史的设置
@@ -284,6 +328,45 @@ disable_history_permanently() {
         export HISTFILESIZE=0
         unset HISTFILE
     '
+}
+
+# 恢复命令历史记录功能
+restore_history_function() {
+    run_silent "恢复命令历史记录功能" bash -c '
+        # 恢复原始配置文件
+        for profile in /etc/profile /etc/bash.bashrc /etc/profile.d/history.sh; do
+            if [ -f "${profile}.original" ]; then
+                cp "${profile}.original" "$profile" 2>/dev/null
+            else
+                # 如果没有原始备份，清除禁用历史的设置
+                if [ -f "$profile" ]; then
+                    sed -i "/# 禁用命令历史记录/d" "$profile" 2>/dev/null
+                    sed -i "/HISTSIZE=0/d" "$profile" 2>/dev/null
+                    sed -i "/HISTFILESIZE=0/d" "$profile" 2>/dev/null
+                    sed -i "/HISTLOG=/d" "$profile" 2>/dev/null
+                    sed -i "/unset HISTFILE/d" "$profile" 2>/dev/null
+                    sed -i "/export HISTSIZE HISTFILESIZE HISTLOG/d" "$profile" 2>/dev/null
+                    sed -i "/readonly HISTFILE/d" "$profile" 2>/dev/null
+                    sed -i "/readonly HISTSIZE/d" "$profile" 2>/dev/null
+                    sed -i "/readonly HISTFILESIZE/d" "$profile" 2>/dev/null
+                fi
+            fi
+        done
+        
+        # 添加默认历史设置到profile
+        if [ -f "/etc/profile" ]; then
+            echo "# 恢复默认命令历史记录设置" >> /etc/profile
+            echo "HISTSIZE=1000" >> /etc/profile
+            echo "HISTFILESIZE=2000" >> /etc/profile
+            echo "export HISTSIZE HISTFILESIZE" >> /etc/profile
+        fi
+        
+        # 设置当前会话
+        export HISTSIZE=1000
+        export HISTFILESIZE=2000
+    '
+    
+    echo -e "${YELLOW}请注意：要使命令历史记录功能完全恢复，请注销并重新登录系统。${NC}"
 }
 
 # 清理临时文件和缓存
@@ -375,6 +458,8 @@ main() {
             5) disable_history_permanently ;;
             6) clean_temp_files ;;
             7) run_all_operations ;;
+            8) restore_ssh_logs ;;
+            9) restore_history_function ;;
             0) 
                 echo -e "${GREEN}感谢使用本工具，再见！${NC}"
                 exit 0
@@ -386,8 +471,13 @@ main() {
         esac
         
         # 操作完成后显示验证命令
-        if [[ $choice =~ [1-7] ]]; then
-            show_verification_commands
+        if [[ $choice =~ [1-9] ]]; then
+            # 如果是恢复功能，不显示验证命令
+            if [[ $choice == "8" || $choice == "9" ]]; then
+                echo -e "\n${GREEN}${BOLD}恢复操作已完成！${NC}"
+            else
+                show_verification_commands
+            fi
             
             # 询问是否继续
             if confirm "是否继续其他操作" "y"; then
