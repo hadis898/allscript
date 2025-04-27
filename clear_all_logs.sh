@@ -233,6 +233,36 @@ find /var/spool/ /var/log/ /var/tmp/ /tmp/ -name "*history*" -type f 2>/dev/null
         chmod u-w "$hist_file" 2>/dev/null
     fi
 done
+
+# 防止会话结束时将历史写入文件（重要补充）
+export HISTSIZE=0
+export HISTFILESIZE=0
+unset HISTFILE 2>/dev/null || true
+
+# 对所有bash用户当前配置文件添加临时设置
+for profile in ~/.bashrc ~/.bash_profile ~/.profile; do
+    if [ -f "$profile" ]; then
+        # 添加临时设置到当前用户的bash配置
+        echo "# 临时禁用历史记录 - 将在下次登录时生效" >> "$profile"
+        echo "HISTSIZE=0" >> "$profile"
+        echo "HISTFILESIZE=0" >> "$profile"
+        echo "unset HISTFILE" >> "$profile"
+        echo "export HISTSIZE HISTFILESIZE" >> "$profile"
+    fi
+done
+
+# 确保所有用户的历史文件在会话结束时不会被写入
+for user_home in /root /home/*; do
+    if [ -d "$user_home" ]; then
+        # 创建或修改.bash_logout文件，确保会话结束时清除历史
+        echo "history -c" > "$user_home/.bash_logout" 2>/dev/null
+        echo "rm -f $user_home/.bash_history" >> "$user_home/.bash_logout" 2>/dev/null
+        chmod +x "$user_home/.bash_logout" 2>/dev/null
+    fi
+done
+
+# 设置会话终止处理程序
+trap "history -c" EXIT
 EOF
 
     # 添加执行权限
@@ -243,6 +273,22 @@ EOF
     
     # 清理临时脚本
     rm -f "$temp_script"
+    
+    # 提醒用户可能需要额外步骤
+    echo -e "\n${YELLOW}提示：要完全阻止命令记录，建议同时选择选项7（永久禁用命令历史记录功能）${NC}"
+    echo -e "${RED}${BOLD}警告：${NC} ${YELLOW}即使清除历史，当前会话的命令仍可能在退出时保存到历史文件！${NC}"
+    echo -e "${YELLOW}为确保历史彻底清除，请在操作完成后使用以下命令立即终止当前会话:${NC}"
+    echo -e "  ${CYAN}➜ ${NC}${BOLD}kill -9 $$${NC}               ${YELLOW}# 强制终止当前会话${NC}\n"
+    
+    # 为当前会话应用额外的历史记录禁用
+    # 直接在当前会话中执行，避免子shell隔离
+    export HISTSIZE=0
+    export HISTFILESIZE=0
+    unset HISTFILE 2>/dev/null || true
+    history -c
+    history -w
+    # 设置退出时清除历史的trap
+    trap "history -c" EXIT
 }
 
 # 清除登录日志函数
@@ -797,6 +843,9 @@ show_verification_commands() {
     echo -e "  ${CYAN}➜ ${NC}${BOLD}journalctl -u sshd${NC}       ${YELLOW}# 检查SSH日志${NC}"
     echo -e "  ${CYAN}➜ ${NC}${BOLD}ls -la /var/log/${NC}         ${YELLOW}# 检查系统日志${NC}"
     echo -e "  ${CYAN}➜ ${NC}${BOLD}cat ~/.bash_history${NC}      ${YELLOW}# 检查bash历史文件${NC}\n"
+    
+    echo -e "${RED}${BOLD}注意：${NC} ${YELLOW}为确保命令历史清除彻底，运行以下命令后立即退出终端:${NC}"
+    echo -e "  ${CYAN}➜ ${NC}${BOLD}kill -9 $$${NC}               ${YELLOW}# 强制终止当前会话${NC}\n"
 }
 
 # 显示退出消息
