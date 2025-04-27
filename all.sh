@@ -17,9 +17,9 @@ GITHUB_BRANCH='main'
 
 # 代理配置 (可以根据需要更换)
 GITHUB_PROXIES=(
-    "https://mirror.ghproxy.com/https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}"
+    "https://ghfast.top/https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}"
     "https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}"
-    "https://ghp.ci/https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}"
+    "https://gh.7761.cf/https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}"
 )
 
 # 日志函数
