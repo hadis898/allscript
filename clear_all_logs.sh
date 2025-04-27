@@ -671,7 +671,11 @@ run_all_operations() {
     setup_logout_cleaner
     
     echo -e "\n${GREEN}${BOLD}全面系统痕迹清理操作已完成${NC}"
+<<<<<<< HEAD
     echo -e "\n${CYAN}✓ 所有痕迹已被清除！${NC}\n"
+=======
+    echo -e "\n${CYAN}✓ 所有痕迹已被清除，系统现在处于安全状态！${NC}\n"
+>>>>>>> parent of 2c164a2 (一键清除Linux所有操作痕迹脚本)
 }
 
 # 设置退出时清除历史的钩子
