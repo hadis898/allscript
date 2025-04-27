@@ -355,9 +355,8 @@ EOF
     export HISTFILESIZE=0
     export HISTCONTROL=ignoreboth:erasedups
     
-    echo -e "\n${GREEN}命令历史已清除并临时禁用！${NC}\n"
-    echo -e "${YELLOW}提示：此方法会临时禁用历史记录功能，但下次系统重启后可能会恢复。${NC}"
-    echo -e "${YELLOW}如需永久禁用，请使用"永久禁用命令历史记录功能"选项。${NC}\n"
+    echo -e "\n${GREEN}命令历史已清除并禁用！${NC}\n"
+
 }
 
 # 永久禁用命令历史记录功能
@@ -1104,6 +1103,7 @@ run_all_operations() {
         "clear_system_logs"
         "clean_temp_files"
         "clear_command_history"
+        "restore_history_function"
     )
     
     # 遍历执行所有操作
