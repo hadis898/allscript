@@ -1,8 +1,31 @@
 #!/bin/bash
-# 恢复历史记录功能的脚本
+# 恢复历史记录与上下键功能的脚本
 
-# 恢复各个配置文件的备份
-for config_file in ~/.bashrc ~/.bash_profile ~/.profile ~/.inputrc /etc/profile /etc/bash.bashrc; do
+echo "开始恢复历史记录与上下键功能..."
+
+# 恢复.inputrc文件
+if [ -f ~/.inputrc.original ]; then
+    cp ~/.inputrc.original ~/.inputrc
+    rm -f ~/.inputrc.original
+    echo "已从备份恢复.inputrc文件"
+else
+    # 删除禁用上下键的配置
+    sed -i '/禁用历史导航/d' ~/.inputrc 2>/dev/null
+    sed -i '/"\e\[A": ""/d' ~/.inputrc 2>/dev/null
+    sed -i '/"\e\[B": ""/d' ~/.inputrc 2>/dev/null
+    
+    # 添加正确的上下键绑定
+    mkdir -p ~/
+    cat >> ~/.inputrc << 'EOF'
+# 恢复上下键历史浏览功能 - 添加于 $(date)
+"\e[A": history-search-backward
+"\e[B": history-search-forward
+EOF
+    echo "已重新配置.inputrc文件以恢复上下键功能"
+fi
+
+# 恢复其他配置文件的备份
+for config_file in ~/.bashrc ~/.bash_profile ~/.profile /etc/profile /etc/bash.bashrc; do
     if [ -f "${config_file}.original" ]; then
         sudo cp "${config_file}.original" "${config_file}" 2>/dev/null
         sudo rm -f "${config_file}.original" 2>/dev/null
@@ -15,14 +38,14 @@ sudo rm -f /etc/profile.d/history.sh 2>/dev/null
 
 # 恢复bash_logout文件
 if [ -f ~/.bash_logout.original ]; then
-    sudo cp ~/.bash_logout.original ~/.bash_logout 2>/dev/null
-    sudo rm -f ~/.bash_logout.original 2>/dev/null
+    cp ~/.bash_logout.original ~/.bash_logout 2>/dev/null
+    rm -f ~/.bash_logout.original 2>/dev/null
     echo "已恢复 ~/.bash_logout 的原始备份"
 else
     # 删除可能存在的清理历史记录命令
-    sudo sed -i '/# 退出时清理当前会话历史/d' ~/.bash_logout 2>/dev/null
-    sudo sed -i '/history -c/d' ~/.bash_logout 2>/dev/null
-    sudo sed -i '/history -w/d' ~/.bash_logout 2>/dev/null
+    sed -i '/# 退出时清理当前会话历史/d' ~/.bash_logout 2>/dev/null
+    sed -i '/history -c/d' ~/.bash_logout 2>/dev/null
+    sed -i '/history -w/d' ~/.bash_logout 2>/dev/null
     echo "已清理 ~/.bash_logout 中的历史记录禁用命令"
 fi
 
@@ -37,4 +60,4 @@ HISTSIZE=1000
 HISTFILESIZE=2000
 export HISTSIZE HISTFILESIZE
 
-echo "历史记录功能已恢复，请注销并重新登录以完全生效"
+echo "历史记录与上下键功能已恢复，请注销并重新登录以完全生效"
