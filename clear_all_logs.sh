@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# 一键清除Linux所有操作痕迹
+# 一键清除Linux所有操作痕迹 v2025.04.25
 # 高级系统痕迹清理工具
 # 使用方法：sudo ./clear_all_logs.sh
 # ============================================================
@@ -26,7 +26,7 @@ show_logo() {
     echo " ╚██████╗███████╗███████╗██║  ██║██║  ██║       ██║   ██║  ██║██║  ██║╚██████╗███████╗"
     echo "  ╚═════╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝       ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚══════╝"
     echo -e "${NC}"
-    echo -e "${CYAN}${BOLD}                   一键清除Linux所有操作痕迹 v2025.04.25${NC}"
+    echo -e "${CYAN}${BOLD}                       高级系统痕迹清理工具 v2025.04.25${NC}"
     echo -e "${YELLOW}                       安全、高效、无痕迹操作${NC}\n"
 }
 
@@ -40,16 +40,15 @@ check_root() {
     echo -e "${GREEN}✅ 权限检查通过${NC}"
 }
 
-# 显示进度函数
+# 显示简单进度函数 (不依赖bc命令)
 progress_bar() {
-    local duration=$1
     local bar_size=30
-    local sleep_duration=$(bc <<< "scale=3; $duration/$bar_size")
+    local char="#"
     
     echo -ne "${YELLOW}[${NC}"
     for i in $(seq 1 $bar_size); do
-        sleep $sleep_duration
-        echo -ne "${GREEN}#${NC}"
+        sleep 0.05
+        echo -ne "${GREEN}${char}${NC}"
     done
     echo -e "${YELLOW}] ${GREEN}完成!${NC}"
 }
@@ -63,8 +62,8 @@ run_silent() {
     ("$@" >/dev/null 2>&1) &
     local pid=$!
     
-    # 显示进度条(假进度，但更好看)
-    progress_bar 1.5
+    # 显示进度条(简化版)
+    progress_bar
     
     # 等待进程完成
     wait $pid
@@ -118,7 +117,7 @@ show_menu() {
     echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}4.${NC} 禁用SSH日志记录                                       ${BOLD}${CYAN}║${NC}"
     echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}5.${NC} 永久禁用命令历史记录功能                              ${BOLD}${CYAN}║${NC}"
     echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}6.${NC} 清理临时文件和缓存                                    ${BOLD}${CYAN}║${NC}"
-    echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}7.${NC} 一键执行所有清理操作（执行后会断开客户端）               ${BOLD}${CYAN}║${NC}"
+    echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}7.${NC} 一键执行所有清理操作                                  ${BOLD}${CYAN}║${NC}"
     echo -e "${BOLD}${CYAN}║${NC}  ${MAGENTA}0.${NC} 退出程序                                              ${BOLD}${CYAN}║${NC}"
     echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
     
@@ -147,18 +146,12 @@ clear_command_history() {
                         cat /dev/null > "$hist_file" 2>/dev/null
                     fi
                 done
-                
-                # 如果有用户正在登录，尝试清除其活动shell的历史
-                for pid in $(pgrep -u "$user" bash); do
-                    # 向每个bash进程发送history -c命令
-                    su - "$user" -c "kill -USR1 $pid && echo \"history -c && history -w\" >> /proc/$pid/fd/0" 2>/dev/null
-                done
             fi
         done
         
         # 清除当前shell的历史
-        history -c
-        history -w
+        history -c 2>/dev/null
+        history -w 2>/dev/null
         
         # 确保系统没有保留任何bash_history相关文件
         find /var/spool/ /var/log/ /var/tmp/ /tmp/ -name "*history*" -type f -delete 2>/dev/null
