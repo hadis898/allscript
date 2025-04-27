@@ -1,8 +1,8 @@
 #!/bin/bash
 # ============================================================
-# 一键清除Linux所有操作痕迹
+# 一键清除Linux所有操作痕迹 v2025.04.27
+# Linux系统痕迹清理与管理工具
 # By Uyiosa Idahosa
-# 使用方法：sudo ./clear_all_logs.sh
 # ============================================================
 
 # 颜色定义
@@ -32,6 +32,9 @@ repeat_char() {
 # Logo显示函数
 show_logo() {
     clear
+    local width=70
+    local horizontal_line=$(repeat_char "═" $width)
+    
     echo -e "${BLUE}${BOLD}"
     echo "  ██████╗██╗     ███████╗ █████╗ ██████╗     ████████╗██████╗  █████╗  ██████╗███████╗"
     echo " ██╔════╝██║     ██╔════╝██╔══██╗██╔══██╗    ╚══██╔══╝██╔══██╗██╔══██╗██╔════╝██╔════╝"
@@ -40,8 +43,11 @@ show_logo() {
     echo " ╚██████╗███████╗███████╗██║  ██║██║  ██║       ██║   ██║  ██║██║  ██║╚██████╗███████╗"
     echo "  ╚═════╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝       ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚══════╝"
     echo -e "${NC}"
-    echo -e "${CYAN}${BOLD}                 一键清除Linux所有操作痕迹 ${VERSION}${NC}"
-    echo -e "${YELLOW}                       安全、高效、无痕迹操作${NC}\n"
+    
+    echo -e "${YELLOW}${BOLD}┌${horizontal_line}┐${NC}"
+    echo -e "${YELLOW}${BOLD}│${CYAN}${BOLD}                 Linux系统痕迹清理与管理工具 ${VERSION}                 ${YELLOW}│${NC}"
+    echo -e "${YELLOW}${BOLD}│${GREEN}                       安全、高效、无痕迹操作                        ${YELLOW}│${NC}"
+    echo -e "${YELLOW}${BOLD}└${horizontal_line}┘${NC}\n"
 }
 
 # 检查 root 权限
@@ -141,7 +147,7 @@ confirm() {
 # 主菜单函数
 show_menu() {
     local width=70
-    local title="【 清理与恢复操作菜单 】"
+    local title="【 Linux系统痕迹清理与管理工具 】"
     local title_padding=$(( (width - ${#title}) / 2 ))
     
     local horizontal_line=$(repeat_char "─" $width)
@@ -151,27 +157,32 @@ show_menu() {
     echo -e "${MAGENTA}${BOLD}${title_space_prefix}${title}${title_space_prefix}${NC}"
     echo -e "${BOLD}${CYAN}${horizontal_line}${NC}"
     
-    # 清理选项部分 - 确保所有行的长度一致
-    echo -e "${GREEN}${BOLD}                      清理选项                           ${NC}"
+    # 清理选项部分
+    echo -e "${YELLOW}${BOLD}┌─────────────────── ${GREEN}清理选项 ${YELLOW}────────────────────┐${NC}"
     echo -e ""
-    echo -e "  ${MAGENTA}1.${NC} 清除命令历史及bash记录      ${MAGENTA}2.${NC} 清除登录日志和认证记录"
-    echo -e "  ${MAGENTA}3.${NC} 清除系统日志与journald记录  ${MAGENTA}4.${NC} 清理临时文件和缓存"
-    echo -e "  ${MAGENTA}5.${NC} 一键执行所有清理操作"
+    echo -e "  ${MAGENTA}1.${NC} 清除命令历史及bash记录        ${CYAN}# 删除所有用户的命令历史${NC}"
+    echo -e "  ${MAGENTA}2.${NC} 清除登录日志和认证记录        ${CYAN}# 清空wtmp/btmp/lastlog等${NC}"
+    echo -e "  ${MAGENTA}3.${NC} 清除系统日志与journald记录    ${CYAN}# 清空系统日志目录${NC}"
+    echo -e "  ${MAGENTA}4.${NC} 清理临时文件和缓存            ${CYAN}# 清理临时文件与包管理缓存${NC}"
+    echo -e "  ${MAGENTA}5.${NC} 一键执行所有清理操作          ${CYAN}# 执行所有清理与禁用功能${NC}"
+    echo -e ""
     
-    # 禁用选项部分 - 新增的部分
+    # 禁用选项部分
+    echo -e "${YELLOW}${BOLD}├─────────────────── ${GREEN}禁用选项 ${YELLOW}────────────────────┤${NC}"
     echo -e ""
-    echo -e "${GREEN}${BOLD}                      禁用选项                           ${NC}"
+    echo -e "  ${MAGENTA}6.${NC} 禁用SSH日志记录              ${CYAN}# 防止SSH操作被记录${NC}"
+    echo -e "  ${MAGENTA}7.${NC} 永久禁用命令历史记录功能      ${CYAN}# 系统级禁用历史记录${NC}"
     echo -e ""
-    echo -e "  ${MAGENTA}6.${NC} 禁用SSH日志记录             ${MAGENTA}7.${NC} 永久禁用命令历史记录功能"
     
-    # 恢复选项部分 - 确保所有行的长度一致
+    # 恢复选项部分
+    echo -e "${YELLOW}${BOLD}├─────────────────── ${GREEN}恢复选项 ${YELLOW}────────────────────┤${NC}"
     echo -e ""
-    echo -e "${GREEN}${BOLD}                      恢复选项                           ${NC}"
+    echo -e "  ${MAGENTA}8.${NC} 恢复SSH日志记录功能          ${CYAN}# 恢复SSH日志记录${NC}"
+    echo -e "  ${MAGENTA}9.${NC} 恢复命令历史记录功能          ${CYAN}# 恢复历史记录功能${NC}"
     echo -e ""
-    echo -e "  ${MAGENTA}8.${NC} 恢复SSH日志记录功能         ${MAGENTA}9.${NC} 恢复命令历史记录功能"
-    echo -e "  ${MAGENTA}0.${NC} 退出程序"
+    echo -e "  ${MAGENTA}0.${NC} 退出程序                    ${CYAN}# 退出脚本${NC}"
     echo -e ""
-    echo -e "${BOLD}${CYAN}${horizontal_line}${NC}"
+    echo -e "${YELLOW}${BOLD}└──────────────────────────────────────────────────┘${NC}"
     
     echo -ne "${CYAN}请选择操作选项 ${YELLOW}[0-9]${NC}: "
 }
@@ -652,7 +663,7 @@ clean_temp_files() {
 
 # 执行所有清理操作
 run_all_operations() {
-    local width=60
+    local width=70
     local start_title="开始全面系统痕迹清理"
     local end_title="全面系统痕迹清理操作已完成"
     local start_padding=$(( (width - ${#start_title}) / 2 ))
@@ -663,9 +674,9 @@ run_all_operations() {
     local end_space=$(repeat_char " " $end_padding)
     
     # 开始清理消息
-    echo -e "\n${BOLD}${MAGENTA}${horizontal_line}${NC}"
-    echo -e "${YELLOW}${BOLD}${start_space}${start_title}${start_space}${NC}"
-    echo -e "${BOLD}${MAGENTA}${horizontal_line}${NC}\n"
+    echo -e "\n${YELLOW}${BOLD}┌${horizontal_line}┐${NC}"
+    echo -e "${YELLOW}${BOLD}│${GREEN}${BOLD}${start_space}${start_title}${start_space}${YELLOW}│${NC}"
+    echo -e "${YELLOW}${BOLD}└${horizontal_line}┘${NC}\n"
     
     # 执行所有操作
     clear_command_history
@@ -676,25 +687,25 @@ run_all_operations() {
     clean_temp_files
     
     # 完成清理消息
-    echo -e "\n${BOLD}${GREEN}${horizontal_line}${NC}"
-    echo -e "${YELLOW}${BOLD}${end_space}${end_title}${end_space}${NC}"
-    echo -e "${BOLD}${GREEN}${horizontal_line}${NC}"
+    echo -e "\n${GREEN}${BOLD}┌${horizontal_line}┐${NC}"
+    echo -e "${GREEN}${BOLD}│${YELLOW}${BOLD}${end_space}${end_title}${end_space}${GREEN}│${NC}"
+    echo -e "${GREEN}${BOLD}└${horizontal_line}┘${NC}"
     
-    echo -e "\n${CYAN}✅ 所有痕迹已被清除，系统现在处于安全状态！${NC}\n"
+    echo -e "\n${CYAN}✓ 所有痕迹已被清除，系统现在处于安全状态！${NC}\n"
 }
 
 # 显示验证命令
 show_verification_commands() {
-    local width=60
+    local width=70
     local title="验证清理效果的命令"
     local title_padding=$(( (width - ${#title}) / 2 ))
     
     local horizontal_line=$(repeat_char "─" $width)
     local title_space_prefix=$(repeat_char " " $title_padding)
     
-    echo -e "\n${BOLD}${CYAN}${horizontal_line}${NC}"
-    echo -e "${YELLOW}${BOLD}${title_space_prefix}${title}${title_space_prefix}${NC}"
-    echo -e "${BOLD}${CYAN}${horizontal_line}${NC}"
+    echo -e "\n${CYAN}${BOLD}┌${horizontal_line}┐${NC}"
+    echo -e "${CYAN}${BOLD}│${YELLOW}${BOLD}${title_space_prefix}${title}${title_space_prefix}${CYAN}│${NC}"
+    echo -e "${CYAN}${BOLD}└${horizontal_line}┘${NC}"
     
     echo -e "\n${BOLD}${GREEN}可用命令:${NC}"
     echo -e "  ${CYAN}➜ ${NC}${BOLD}last${NC}                     ${YELLOW}# 检查登录记录${NC}"
@@ -711,16 +722,16 @@ show_verification_commands() {
 
 # 显示退出消息
 show_exit_message() {
-    local width=50
+    local width=70
     local title="感谢使用本工具，再见！"
     local padding=$(( (width - ${#title}) / 2 ))
     
     local horizontal_line=$(repeat_char "─" $width)
     local space=$(repeat_char " " $padding)
     
-    echo -e "\n${BOLD}${BLUE}${horizontal_line}${NC}"
-    echo -e "${GREEN}${BOLD}${space}${title}${space}${NC}"
-    echo -e "${BOLD}${BLUE}${horizontal_line}${NC}\n"
+    echo -e "\n${BLUE}${BOLD}┌${horizontal_line}┐${NC}"
+    echo -e "${BLUE}${BOLD}│${GREEN}${BOLD}${space}${title}${space}${BLUE}│${NC}"
+    echo -e "${BLUE}${BOLD}└${horizontal_line}┘${NC}\n"
 }
 
 # 主函数
@@ -734,20 +745,6 @@ main() {
         show_verification_commands
         exit 0
     fi
-    
-    # 显示成功完成的恢复操作消息
-    show_restore_complete() {
-        local width=50
-        local title="恢复操作已完成"
-        local padding=$(( (width - ${#title}) / 2 ))
-        
-        local horizontal_line=$(repeat_char "─" $width)
-        local space=$(repeat_char " " $padding)
-        
-        echo -e "\n${BOLD}${GREEN}${horizontal_line}${NC}"
-        echo -e "${CYAN}${BOLD}${space}${title}${space}${NC}"
-        echo -e "${BOLD}${GREEN}${horizontal_line}${NC}\n"
-    }
     
     while true; do
         show_menu
