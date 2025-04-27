@@ -35,14 +35,6 @@ show_logo() {
     local width=70
     local horizontal_line=$(repeat_char "═" $width)
     
-    echo -e "${BLUE}${BOLD}"
-    echo "  ██████╗██╗     ███████╗ █████╗ ██████╗     ████████╗██████╗  █████╗  ██████╗███████╗"
-    echo " ██╔════╝██║     ██╔════╝██╔══██╗██╔══██╗    ╚══██╔══╝██╔══██╗██╔══██╗██╔════╝██╔════╝"
-    echo " ██║     ██║     █████╗  ███████║██████╔╝       ██║   ██████╔╝███████║██║     █████╗  "
-    echo " ██║     ██║     ██╔══╝  ██╔══██║██╔══██╗       ██║   ██╔══██╗██╔══██║██║     ██╔══╝  "
-    echo " ╚██████╗███████╗███████╗██║  ██║██║  ██║       ██║   ██║  ██║██║  ██║╚██████╗███████╗"
-    echo "  ╚═════╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝       ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚══════╝"
-    echo -e "${NC}"
     
     echo -e "${YELLOW}${BOLD}┌${horizontal_line}┐${NC}"
     echo -e "${YELLOW}${BOLD}│${CYAN}${BOLD}                 Linux系统痕迹清理与管理工具 ${VERSION}              ${YELLOW}│${NC}"
@@ -667,7 +659,7 @@ run_all_operations() {
     
     # 开始清理消息
     echo -e "\n${YELLOW}${BOLD}┌${horizontal_line}┐${NC}"
-    echo -e "${YELLOW}${BOLD}│${GREEN}${BOLD}${start_space}${start_title}${start_space}${YELLOW}│${NC}"
+    echo -e "${YELLOW}${BOLD}│${GREEN}${BOLD}${start_space}${start_title}${start_space}      ${YELLOW}│${NC}"
     echo -e "${YELLOW}${BOLD}└${horizontal_line}┘${NC}\n"
     
     # 执行所有操作
@@ -680,7 +672,7 @@ run_all_operations() {
     
     # 完成清理消息
     echo -e "\n${GREEN}${BOLD}┌${horizontal_line}┐${NC}"
-    echo -e "${GREEN}${BOLD}│${YELLOW}${BOLD}${end_space}${end_title}${end_space}${GREEN}│${NC}"
+    echo -e "${GREEN}${BOLD}│${YELLOW}${BOLD}${end_space}${end_title}${end_space}        ${GREEN}│${NC}"
     echo -e "${GREEN}${BOLD}└${horizontal_line}┘${NC}"
     
     echo -e "\n${CYAN}✓ 所有痕迹已被清除，系统现在处于安全状态！${NC}\n"
@@ -696,7 +688,7 @@ show_verification_commands() {
     local title_space_prefix=$(repeat_char " " $title_padding)
     
     echo -e "\n${CYAN}${BOLD}┌${horizontal_line}┐${NC}"
-    echo -e "${CYAN}${BOLD}│${YELLOW}${BOLD}${title_space_prefix}${title}${title_space_prefix}${CYAN}│${NC}"
+    echo -e "${CYAN}${BOLD}│${YELLOW}${BOLD}${title_space_prefix}${title}${title_space_prefix}      ${CYAN}│${NC}"
     echo -e "${CYAN}${BOLD}└${horizontal_line}┘${NC}"
     
     echo -e "\n${BOLD}${GREEN}可用命令:${NC}"
