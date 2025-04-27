@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
-# 一键清除Linux所有操作痕迹 v2025.04.27
-# By Uyiosa Idahosa2
+# 一键清除Linux所有操作痕迹
+# By Uyiosa Idahosa
 # 使用方法：sudo ./clear_all_logs.sh
 # ============================================================
 
@@ -147,26 +147,31 @@ show_menu() {
     local horizontal_line=$(repeat_char "─" $width)
     local title_space_prefix=$(repeat_char " " $title_padding)
     
-    echo -e "\n${BOLD}${CYAN}╭${horizontal_line}╮${NC}"
-    echo -e "${BOLD}${CYAN}│${MAGENTA}${BOLD}${title_space_prefix}${title}${title_space_prefix}${CYAN}│${NC}"
-    echo -e "${BOLD}${CYAN}├${horizontal_line}┤${NC}"
+    echo -e "\n${BOLD}${CYAN}${horizontal_line}${NC}"
+    echo -e "${MAGENTA}${BOLD}${title_space_prefix}${title}${title_space_prefix}${NC}"
+    echo -e "${BOLD}${CYAN}${horizontal_line}${NC}"
     
     # 清理选项部分 - 确保所有行的长度一致
-    echo -e "${BOLD}${CYAN}│${GREEN}${BOLD}                      清理选项                           ${CYAN}│${NC}"
-    echo -e "${BOLD}${CYAN}│                                                                  │${NC}"
-    echo -e "${BOLD}${CYAN}│${NC}  ${MAGENTA}1.${NC} 清除命令历史及bash记录      ${MAGENTA}2.${NC} 清除登录日志和认证记录  ${BOLD}${CYAN}│${NC}"
-    echo -e "${BOLD}${CYAN}│${NC}  ${MAGENTA}3.${NC} 清除系统日志与journald记录  ${MAGENTA}4.${NC} 禁用SSH日志记录        ${BOLD}${CYAN}│${NC}"
-    echo -e "${BOLD}${CYAN}│${NC}  ${MAGENTA}5.${NC} 永久禁用命令历史记录功能    ${MAGENTA}6.${NC} 清理临时文件和缓存      ${BOLD}${CYAN}│${NC}"
-    echo -e "${BOLD}${CYAN}│${NC}  ${MAGENTA}7.${NC} 一键执行所有清理操作                                  ${BOLD}${CYAN}│${NC}"
+    echo -e "${GREEN}${BOLD}                      清理选项                           ${NC}"
+    echo -e ""
+    echo -e "  ${MAGENTA}1.${NC} 清除命令历史及bash记录      ${MAGENTA}2.${NC} 清除登录日志和认证记录"
+    echo -e "  ${MAGENTA}3.${NC} 清除系统日志与journald记录  ${MAGENTA}4.${NC} 清理临时文件和缓存"
+    echo -e "  ${MAGENTA}5.${NC} 一键执行所有清理操作"
+    
+    # 禁用选项部分 - 新增的部分
+    echo -e ""
+    echo -e "${GREEN}${BOLD}                      禁用选项                           ${NC}"
+    echo -e ""
+    echo -e "  ${MAGENTA}6.${NC} 禁用SSH日志记录             ${MAGENTA}7.${NC} 永久禁用命令历史记录功能"
     
     # 恢复选项部分 - 确保所有行的长度一致
-    echo -e "${BOLD}${CYAN}│                                                                  │${NC}"
-    echo -e "${BOLD}${CYAN}│${GREEN}${BOLD}                      恢复选项                           ${CYAN}│${NC}"
-    echo -e "${BOLD}${CYAN}│                                                                  │${NC}"
-    echo -e "${BOLD}${CYAN}│${NC}  ${MAGENTA}8.${NC} 恢复SSH日志记录功能         ${MAGENTA}9.${NC} 恢复命令历史记录功能    ${BOLD}${CYAN}│${NC}"
-    echo -e "${BOLD}${CYAN}│${NC}  ${MAGENTA}0.${NC} 退出程序                                              ${BOLD}${CYAN}│${NC}"
-    echo -e "${BOLD}${CYAN}│                                                                  │${NC}"
-    echo -e "${BOLD}${CYAN}╰${horizontal_line}╯${NC}"
+    echo -e ""
+    echo -e "${GREEN}${BOLD}                      恢复选项                           ${NC}"
+    echo -e ""
+    echo -e "  ${MAGENTA}8.${NC} 恢复SSH日志记录功能         ${MAGENTA}9.${NC} 恢复命令历史记录功能"
+    echo -e "  ${MAGENTA}0.${NC} 退出程序"
+    echo -e ""
+    echo -e "${BOLD}${CYAN}${horizontal_line}${NC}"
     
     echo -ne "${CYAN}请选择操作选项 ${YELLOW}[0-9]${NC}: "
 }
@@ -335,18 +340,7 @@ disable_ssh_logs() {
                 echo "LogLevel QUIET" >> /etc/ssh/sshd_config
             fi
             
-            # 禁用SSH PAM日志
-            if ! grep -q "^UsePAM no" /etc/ssh/sshd_config; then
-                # 如果已经有UsePAM设置，则修改它
-                if grep -q "^UsePAM" /etc/ssh/sshd_config; then
-                    sed -i "s/^UsePAM.*/UsePAM no/" /etc/ssh/sshd_config
-                else
-                    # 否则添加新的设置
-                    echo "UsePAM no" >> /etc/ssh/sshd_config
-                fi
-            fi
-            
-            # 禁用特定的SSH日志类型
+            # 完全禁用SSH日志记录（更强力的设置）
             for setting in "LogLevel QUIET" "SyslogFacility AUTHPRIV" "PrintLastLog no" "PrintMotd no"; do
                 setting_name=$(echo "$setting" | cut -d" " -f1)
                 
@@ -359,6 +353,60 @@ disable_ssh_logs() {
                 fi
             done
             
+            # 修改rsyslog配置禁止记录SSH日志（如果存在）
+            if [ -d "/etc/rsyslog.d" ]; then
+                # 创建自定义规则文件来禁止SSH日志
+                echo "# 禁止记录SSH日志" > /etc/rsyslog.d/sshd-disable.conf
+                echo "if $programname == '\''sshd'\'' then stop" >> /etc/rsyslog.d/sshd-disable.conf
+                
+                # 重启rsyslog服务
+                if command -v systemctl >/dev/null 2>&1; then
+                    systemctl restart rsyslog >/dev/null 2>&1
+                elif command -v service >/dev/null 2>&1; then
+                    service rsyslog restart >/dev/null 2>&1
+                fi
+            fi
+            
+            # 修改主rsyslog配置文件（如果存在）
+            if [ -f "/etc/rsyslog.conf" ]; then
+                # 备份原始配置
+                if [ ! -f "/etc/rsyslog.conf.original" ]; then
+                    cp /etc/rsyslog.conf /etc/rsyslog.conf.original 2>/dev/null
+                fi
+                
+                # 添加SSH过滤规则到配置文件头部
+                if ! grep -q "if \$programname == '\''sshd'\''" /etc/rsyslog.conf; then
+                    sed -i '\''1s/^/# 禁止记录SSH日志\\nif $programname == "sshd" then stop\\n\\n/'\'' /etc/rsyslog.conf
+                fi
+            fi
+            
+            # 修改syslog配置（如果存在）
+            if [ -f "/etc/syslog.conf" ]; then
+                # 备份原始配置
+                if [ ! -f "/etc/syslog.conf.original" ]; then
+                    cp /etc/syslog.conf /etc/syslog.conf.original 2>/dev/null
+                fi
+                
+                # 注释掉与auth和sshd相关的行
+                sed -i '\''s/^auth\.\*/#auth\.\*/'\'' /etc/syslog.conf
+                sed -i '\''s/^authpriv\.\*/#authpriv\.\*/'\'' /etc/syslog.conf
+            fi
+            
+            # 屏蔽SSH登录日志的PAM设置
+            if [ -d "/etc/pam.d" ] && [ -f "/etc/pam.d/sshd" ]; then
+                # 备份原始配置
+                if [ ! -f "/etc/pam.d/sshd.original" ]; then
+                    cp /etc/pam.d/sshd /etc/pam.d/sshd.original 2>/dev/null
+                fi
+                
+                # 注释掉pam_lastlog.so行
+                sed -i '\''s/^session.*pam_lastlog.so/#&/'\'' /etc/pam.d/sshd
+                
+                # 注释掉其他可能记录日志的PAM模块
+                sed -i '\''s/^session.*pam_motd.so/#&/'\'' /etc/pam.d/sshd
+                sed -i '\''s/^session.*pam_mail.so/#&/'\'' /etc/pam.d/sshd
+            fi
+            
             # 重启SSH服务
             if command -v service >/dev/null 2>&1; then
                 service sshd restart >/dev/null 2>&1 || service ssh restart >/dev/null 2>&1
@@ -366,19 +414,14 @@ disable_ssh_logs() {
                 systemctl restart sshd >/dev/null 2>&1 || systemctl restart ssh >/dev/null 2>&1
             fi
             
-            # 验证设置是否生效
-            if grep -q "^LogLevel QUIET" /etc/ssh/sshd_config && grep -q "^SyslogFacility AUTHPRIV" /etc/ssh/sshd_config; then
-                echo "SSH日志设置已成功应用" >&2
-            else
-                echo "警告：SSH日志设置可能未正确应用" >&2
-            fi
-            
-            # 清除现有SSH日志
-            for ssh_log in /var/log/auth.log /var/log/secure /var/log/sshd.log; do
+            # 立即清除现有的SSH日志
+            for ssh_log in /var/log/auth.log /var/log/secure /var/log/sshd.log /var/log/auth.log.* /var/log/secure.* /var/log/messages; do
                 if [ -f "$ssh_log" ]; then
                     truncate -s 0 "$ssh_log" 2>/dev/null
                 fi
             done
+            
+            echo "SSH日志已全面禁用并清除" >&2
         else
             echo "SSH配置文件不存在" >&2
             exit 1
@@ -395,25 +438,64 @@ restore_ssh_logs() {
             cp /etc/ssh/sshd_config.original /etc/ssh/sshd_config 2>/dev/null
             # 删除备份文件，确保下次禁用时可以创建新的备份
             rm -f "/etc/ssh/sshd_config.original" 2>/dev/null
-            echo "已恢复SSH原始配置并删除备份文件" >&2
         else
             # 如果没有原始备份，尝试修改当前配置
             if [ -f "/etc/ssh/sshd_config" ]; then
                 # 修改到默认日志级别
                 sed -i "s/^LogLevel QUIET/LogLevel INFO/" /etc/ssh/sshd_config
                 sed -i "s/^#*SyslogFacility.*/SyslogFacility AUTH/" /etc/ssh/sshd_config
+                sed -i "s/^PrintLastLog no/PrintLastLog yes/" /etc/ssh/sshd_config
+                sed -i "s/^PrintMotd no/PrintMotd yes/" /etc/ssh/sshd_config
             else
                 echo "SSH配置文件不存在" >&2
                 exit 1
             fi
         fi
         
-        # 重启SSH服务
-        if command -v service >/dev/null 2>&1; then
-            service sshd restart >/dev/null 2>&1 || service ssh restart >/dev/null 2>&1
-        elif command -v systemctl >/dev/null 2>&1; then
-            systemctl restart sshd >/dev/null 2>&1 || systemctl restart ssh >/dev/null 2>&1
+        # 恢复rsyslog配置（如果被修改）
+        if [ -f "/etc/rsyslog.d/sshd-disable.conf" ]; then
+            rm -f "/etc/rsyslog.d/sshd-disable.conf" 2>/dev/null
         fi
+        
+        # 恢复主rsyslog配置
+        if [ -f "/etc/rsyslog.conf.original" ]; then
+            cp /etc/rsyslog.conf.original /etc/rsyslog.conf 2>/dev/null
+            rm -f "/etc/rsyslog.conf.original" 2>/dev/null
+        else
+            # 尝试删除过滤规则
+            sed -i '\''/^# 禁止记录SSH日志$/d'\'' /etc/rsyslog.conf
+            sed -i '\''/^if $programname == "sshd" then stop$/d'\'' /etc/rsyslog.conf
+        fi
+        
+        # 恢复syslog配置
+        if [ -f "/etc/syslog.conf.original" ]; then
+            cp /etc/syslog.conf.original /etc/syslog.conf 2>/dev/null
+            rm -f "/etc/syslog.conf.original" 2>/dev/null
+        fi
+        
+        # 恢复PAM配置
+        if [ -f "/etc/pam.d/sshd.original" ]; then
+            cp /etc/pam.d/sshd.original /etc/pam.d/sshd 2>/dev/null
+            rm -f "/etc/pam.d/sshd.original" 2>/dev/null
+        else
+            # 如果没有备份，尝试取消注释被修改的行
+            if [ -f "/etc/pam.d/sshd" ]; then
+                sed -i '\''s/^#\(session.*pam_lastlog.so\)/\1/'\'' /etc/pam.d/sshd
+                sed -i '\''s/^#\(session.*pam_motd.so\)/\1/'\'' /etc/pam.d/sshd
+                sed -i '\''s/^#\(session.*pam_mail.so\)/\1/'\'' /etc/pam.d/sshd
+            fi
+        fi
+        
+        # 重启相关服务
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl restart rsyslog >/dev/null 2>&1
+            systemctl restart sshd >/dev/null 2>&1 || systemctl restart ssh >/dev/null 2>&1
+        elif command -v service >/dev/null 2>&1; then
+            service rsyslog restart >/dev/null 2>&1
+            service sshd restart >/dev/null 2>&1 || service ssh restart >/dev/null 2>&1
+        fi
+        
+        echo "SSH日志记录功能已恢复" >&2
     '
 }
 
@@ -521,9 +603,9 @@ restore_history_function() {
     local horizontal_line=$(repeat_char "─" $width)
     local title_space_prefix=$(repeat_char " " $title_padding)
     
-    echo -e "\n${BOLD}${YELLOW}╭${horizontal_line}╮${NC}"
-    echo -e "${BOLD}${YELLOW}│${RED}${BOLD}${title_space_prefix}${title}${title_space_prefix}${YELLOW}│${NC}"
-    echo -e "${BOLD}${YELLOW}╰${horizontal_line}╯${NC}\n"
+    echo -e "\n${BOLD}${YELLOW}${horizontal_line}${NC}"
+    echo -e "${RED}${BOLD}${title_space_prefix}${title}${title_space_prefix}${NC}"
+    echo -e "${BOLD}${YELLOW}${horizontal_line}${NC}\n"
     
     echo -e "${RED}${BOLD}⚠️  重要提示：${NC}${YELLOW}由于历史记录变量可能被设为只读(readonly)，${NC}"
     echo -e "${YELLOW}命令历史记录功能恢复需要您${BOLD}完全注销并重新登录系统${NC}${YELLOW}才能生效。${NC}"
@@ -581,9 +663,9 @@ run_all_operations() {
     local end_space=$(repeat_char " " $end_padding)
     
     # 开始清理消息
-    echo -e "\n${BOLD}${MAGENTA}╭${horizontal_line}╮${NC}"
-    echo -e "${BOLD}${MAGENTA}│${YELLOW}${BOLD}${start_space}${start_title}${start_space}${MAGENTA}│${NC}"
-    echo -e "${BOLD}${MAGENTA}╰${horizontal_line}╯${NC}\n"
+    echo -e "\n${BOLD}${MAGENTA}${horizontal_line}${NC}"
+    echo -e "${YELLOW}${BOLD}${start_space}${start_title}${start_space}${NC}"
+    echo -e "${BOLD}${MAGENTA}${horizontal_line}${NC}\n"
     
     # 执行所有操作
     clear_command_history
@@ -594,11 +676,11 @@ run_all_operations() {
     clean_temp_files
     
     # 完成清理消息
-    echo -e "\n${BOLD}${GREEN}╭${horizontal_line}╮${NC}"
-    echo -e "${BOLD}${GREEN}│${YELLOW}${BOLD}${end_space}${end_title}${end_space}${GREEN}│${NC}"
-    echo -e "${BOLD}${GREEN}╰${horizontal_line}╯${NC}"
+    echo -e "\n${BOLD}${GREEN}${horizontal_line}${NC}"
+    echo -e "${YELLOW}${BOLD}${end_space}${end_title}${end_space}${NC}"
+    echo -e "${BOLD}${GREEN}${horizontal_line}${NC}"
     
-    echo -e "\n${CYAN}🎉 所有痕迹已被清除，系统现在处于安全状态！${NC}\n"
+    echo -e "\n${CYAN}✅ 所有痕迹已被清除，系统现在处于安全状态！${NC}\n"
 }
 
 # 显示验证命令
@@ -610,9 +692,9 @@ show_verification_commands() {
     local horizontal_line=$(repeat_char "─" $width)
     local title_space_prefix=$(repeat_char " " $title_padding)
     
-    echo -e "\n${BOLD}${CYAN}╭${horizontal_line}╮${NC}"
-    echo -e "${BOLD}${CYAN}│${YELLOW}${BOLD}${title_space_prefix}${title}${title_space_prefix}${CYAN}│${NC}"
-    echo -e "${BOLD}${CYAN}╰${horizontal_line}╯${NC}"
+    echo -e "\n${BOLD}${CYAN}${horizontal_line}${NC}"
+    echo -e "${YELLOW}${BOLD}${title_space_prefix}${title}${title_space_prefix}${NC}"
+    echo -e "${BOLD}${CYAN}${horizontal_line}${NC}"
     
     echo -e "\n${BOLD}${GREEN}可用命令:${NC}"
     echo -e "  ${CYAN}➜ ${NC}${BOLD}last${NC}                     ${YELLOW}# 检查登录记录${NC}"
@@ -636,9 +718,9 @@ show_exit_message() {
     local horizontal_line=$(repeat_char "─" $width)
     local space=$(repeat_char " " $padding)
     
-    echo -e "\n${BOLD}${BLUE}╭${horizontal_line}╮${NC}"
-    echo -e "${BOLD}${BLUE}│${GREEN}${BOLD}${space}${title}${space}${BLUE}│${NC}"
-    echo -e "${BOLD}${BLUE}╰${horizontal_line}╯${NC}\n"
+    echo -e "\n${BOLD}${BLUE}${horizontal_line}${NC}"
+    echo -e "${GREEN}${BOLD}${space}${title}${space}${NC}"
+    echo -e "${BOLD}${BLUE}${horizontal_line}${NC}\n"
 }
 
 # 主函数
@@ -662,9 +744,9 @@ main() {
         local horizontal_line=$(repeat_char "─" $width)
         local space=$(repeat_char " " $padding)
         
-        echo -e "\n${BOLD}${GREEN}╭${horizontal_line}╮${NC}"
-        echo -e "${BOLD}${GREEN}│${CYAN}${BOLD}${space}${title}${space}${GREEN}│${NC}"
-        echo -e "${BOLD}${GREEN}╰${horizontal_line}╯${NC}\n"
+        echo -e "\n${BOLD}${GREEN}${horizontal_line}${NC}"
+        echo -e "${CYAN}${BOLD}${space}${title}${space}${NC}"
+        echo -e "${BOLD}${GREEN}${horizontal_line}${NC}\n"
     }
     
     while true; do
@@ -675,10 +757,10 @@ main() {
             1) clear_command_history ;;
             2) clear_login_logs ;;
             3) clear_system_logs ;;
-            4) disable_ssh_logs ;;
-            5) disable_history_permanently ;;
-            6) clean_temp_files ;;
-            7) run_all_operations ;;
+            4) clean_temp_files ;;
+            5) run_all_operations ;;
+            6) disable_ssh_logs ;;
+            7) disable_history_permanently ;;
             8) restore_ssh_logs ;;
             9) restore_history_function ;;
             0) 
