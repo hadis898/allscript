@@ -1,7 +1,6 @@
 #!/bin/bash
 # ============================================================
-# 一键清除Linux所有操作痕迹 v2025.04.27
-# Linux系统痕迹清理与管理工具
+# 一键清除Linux所有操作痕迹
 # By Uyiosa Idahosa
 # ============================================================
 
@@ -659,7 +658,7 @@ run_all_operations() {
     
     # 开始清理消息
     echo -e "\n${YELLOW}${BOLD}┌${horizontal_line}┐${NC}"
-    echo -e "${YELLOW}${BOLD}│${GREEN}${BOLD}${start_space}${start_title}${start_space}         ${YELLOW}│${NC}"
+    echo -e "${YELLOW}${BOLD}│${GREEN}${BOLD}${start_space}${start_title}${start_space}          ${YELLOW}│${NC}"
     echo -e "${YELLOW}${BOLD}└${horizontal_line}┘${NC}\n"
     
     # 执行所有操作
