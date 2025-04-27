@@ -233,36 +233,6 @@ find /var/spool/ /var/log/ /var/tmp/ /tmp/ -name "*history*" -type f 2>/dev/null
         chmod u-w "$hist_file" 2>/dev/null
     fi
 done
-
-# 防止会话结束时将历史写入文件（重要补充）
-export HISTSIZE=0
-export HISTFILESIZE=0
-unset HISTFILE 2>/dev/null || true
-
-# 对所有bash用户当前配置文件添加临时设置
-for profile in ~/.bashrc ~/.bash_profile ~/.profile; do
-    if [ -f "$profile" ]; then
-        # 添加临时设置到当前用户的bash配置
-        echo "# 临时禁用历史记录 - 将在下次登录时生效" >> "$profile"
-        echo "HISTSIZE=0" >> "$profile"
-        echo "HISTFILESIZE=0" >> "$profile"
-        echo "unset HISTFILE" >> "$profile"
-        echo "export HISTSIZE HISTFILESIZE" >> "$profile"
-    fi
-done
-
-# 确保所有用户的历史文件在会话结束时不会被写入
-for user_home in /root /home/*; do
-    if [ -d "$user_home" ]; then
-        # 创建或修改.bash_logout文件，确保会话结束时清除历史
-        echo "history -c" > "$user_home/.bash_logout" 2>/dev/null
-        echo "rm -f $user_home/.bash_history" >> "$user_home/.bash_logout" 2>/dev/null
-        chmod +x "$user_home/.bash_logout" 2>/dev/null
-    fi
-done
-
-# 设置会话终止处理程序
-trap "history -c" EXIT
 EOF
 
     # 添加执行权限
@@ -273,22 +243,6 @@ EOF
     
     # 清理临时脚本
     rm -f "$temp_script"
-    
-    # 提醒用户可能需要额外步骤
-    echo -e "\n${YELLOW}提示：要完全阻止命令记录，建议同时选择选项7（永久禁用命令历史记录功能）${NC}"
-    echo -e "${RED}${BOLD}警告：${NC} ${YELLOW}即使清除历史，当前会话的命令仍可能在退出时保存到历史文件！${NC}"
-    echo -e "${YELLOW}为确保历史彻底清除，请在操作完成后使用以下命令立即终止当前会话:${NC}"
-    echo -e "  ${CYAN}➜ ${NC}${BOLD}kill -9 $$${NC}               ${YELLOW}# 强制终止当前会话${NC}\n"
-    
-    # 为当前会话应用额外的历史记录禁用
-    # 直接在当前会话中执行，避免子shell隔离
-    export HISTSIZE=0
-    export HISTFILESIZE=0
-    unset HISTFILE 2>/dev/null || true
-    history -c
-    history -w
-    # 设置退出时清除历史的trap
-    trap "history -c" EXIT
 }
 
 # 清除登录日志函数
@@ -701,15 +655,20 @@ restore_history_function() {
     cat > "$temp_script" << 'EOF'
 #!/bin/bash
 # 恢复原始配置文件
-for profile in /etc/profile /etc/bash.bashrc /etc/profile.d/history.sh; do
+for profile in /etc/profile /etc/bash.bashrc /etc/profile.d/history.sh /etc/bashrc /etc/zsh/zshrc /etc/zshrc; do
+    # 检查是否有原始备份文件
     if [ -f "${profile}.original" ]; then
+        echo "正在从备份恢复 ${profile} ..." >&2
         cp "${profile}.original" "$profile" 2>/dev/null
         # 删除备份文件，确保下次禁用时可以创建新的备份
         rm -f "${profile}.original" 2>/dev/null
     else
         # 如果没有原始备份，清除禁用历史的设置
         if [ -f "$profile" ]; then
+            echo "正在清理 ${profile} 中的禁用设置..." >&2
+            # 移除所有与禁用历史相关的设置
             sed -i "/# 禁用命令历史记录/d" "$profile" 2>/dev/null
+            sed -i "/# 临时禁用历史记录/d" "$profile" 2>/dev/null
             sed -i "/HISTSIZE=0/d" "$profile" 2>/dev/null
             sed -i "/HISTFILESIZE=0/d" "$profile" 2>/dev/null
             sed -i "/HISTLOG=/d" "$profile" 2>/dev/null
@@ -718,26 +677,106 @@ for profile in /etc/profile /etc/bash.bashrc /etc/profile.d/history.sh; do
             sed -i "/readonly HISTFILE/d" "$profile" 2>/dev/null
             sed -i "/readonly HISTSIZE/d" "$profile" 2>/dev/null
             sed -i "/readonly HISTFILESIZE/d" "$profile" 2>/dev/null
+            sed -i "/SAVEHIST=0/d" "$profile" 2>/dev/null
+            sed -i "/HISTFILE=\/dev\/null/d" "$profile" 2>/dev/null
         fi
     fi
 done
 
 # 完全删除history.sh文件（如果存在）
 if [ -f "/etc/profile.d/history.sh" ]; then
+    echo "删除 /etc/profile.d/history.sh 文件..." >&2
     rm -f "/etc/profile.d/history.sh" 2>/dev/null
 fi
 
+# 清理其他可能禁用历史的文件
+for file in /etc/profile.d/disable_history.sh /etc/profile.d/no_history.sh; do
+    if [ -f "$file" ]; then
+        echo "删除 ${file} 文件..." >&2
+        rm -f "$file" 2>/dev/null
+    fi
+done
+
+# 恢复所有用户的.bash_logout文件
+for user_home in /home/*; do
+    if [ -d "$user_home" ]; then
+        logout_file="$user_home/.bash_logout"
+        if [ -f "$logout_file" ]; then
+            echo "清理 ${logout_file} 中的历史禁用命令..." >&2
+            # 删除与历史相关的行
+            sed -i "/history -c/d" "$logout_file" 2>/dev/null
+            sed -i "/rm -f.*bash_history/d" "$logout_file" 2>/dev/null
+            
+            # 如果文件为空，则删除它
+            if [ ! -s "$logout_file" ]; then
+                rm -f "$logout_file" 2>/dev/null
+            fi
+        fi
+    fi
+done
+
+# 对root用户也执行相同的操作
+if [ -f "/root/.bash_logout" ]; then
+    echo "清理 /root/.bash_logout 中的历史禁用命令..." >&2
+    sed -i "/history -c/d" "/root/.bash_logout" 2>/dev/null
+    sed -i "/rm -f.*bash_history/d" "/root/.bash_logout" 2>/dev/null
+    
+    if [ ! -s "/root/.bash_logout" ]; then
+        rm -f "/root/.bash_logout" 2>/dev/null
+    fi
+fi
+
+# 清理所有用户配置文件中的禁用设置
+for user_home in /root /home/*; do
+    if [ ! -d "$user_home" ]; then
+        continue
+    fi
+    
+    # 检查和清理用户级别的配置文件
+    for user_file in "$user_home/.bashrc" "$user_home/.bash_profile" "$user_home/.profile" "$user_home/.zshrc"; do
+        if [ -f "$user_file" ]; then
+            echo "清理 ${user_file} 中的历史禁用设置..." >&2
+            # 移除所有与禁用历史相关的设置
+            sed -i "/# 临时禁用历史记录/d" "$user_file" 2>/dev/null
+            sed -i "/HISTSIZE=0/d" "$user_file" 2>/dev/null
+            sed -i "/HISTFILESIZE=0/d" "$user_file" 2>/dev/null
+            sed -i "/unset HISTFILE/d" "$user_file" 2>/dev/null
+            sed -i "/export HISTSIZE HISTFILESIZE/d" "$user_file" 2>/dev/null
+            sed -i "/HISTFILE=\/dev\/null/d" "$user_file" 2>/dev/null
+            sed -i "/SAVEHIST=0/d" "$user_file" 2>/dev/null
+        fi
+    done
+
+    # 重新创建历史文件（如果不存在）
+    if [ ! -f "$user_home/.bash_history" ]; then
+        echo "重新创建 ${user_home}/.bash_history 文件..." >&2
+        touch "$user_home/.bash_history" 2>/dev/null
+        chmod 600 "$user_home/.bash_history" 2>/dev/null
+    fi
+done
+
 # 添加默认历史设置到profile
 if [ -f "/etc/profile" ]; then
-    echo "# 恢复默认命令历史记录设置" >> /etc/profile
-    echo "HISTSIZE=1000" >> /etc/profile
-    echo "HISTFILESIZE=2000" >> /etc/profile
-    echo "export HISTSIZE HISTFILESIZE" >> /etc/profile
+    echo "添加默认历史设置到 /etc/profile ..." >&2
+    # 如果有现有设置，先检查
+    if ! grep -q "HISTSIZE=" "/etc/profile" && ! grep -q "HISTFILESIZE=" "/etc/profile"; then
+        echo "# 恢复默认命令历史记录设置" >> /etc/profile
+        echo "HISTSIZE=1000" >> /etc/profile
+        echo "HISTFILESIZE=2000" >> /etc/profile
+        echo "export HISTSIZE HISTFILESIZE" >> /etc/profile
+    fi
 fi
 
 # 设置当前会话（虽然readonly变量无法在当前会话修改）
 export HISTSIZE=1000 2>/dev/null || true
 export HISTFILESIZE=2000 2>/dev/null || true
+# 如果HISTFILE被unset，重新设置
+if [ -z "$HISTFILE" ]; then
+    export HISTFILE=~/.bash_history 2>/dev/null || true
+fi
+
+echo "命令历史功能已完全恢复！" >&2
+echo "注意：如果记录仍不工作，请完全退出终端并重新登录。" >&2
 EOF
 
     # 添加执行权限
@@ -749,7 +788,15 @@ EOF
     # 清理临时脚本
     rm -f "$temp_script"
     
-    echo -e "\n${RED}${BOLD}⚠️  重要提示：${NC}${YELLOW}注销并重新登录系统，才能生效。${NC}"
+    echo -e "\n${RED}${BOLD}⚠️  重要提示：${NC}"
+    echo -e "${YELLOW}1. 完全退出所有终端窗口（关闭SSH连接）${NC}"
+    echo -e "${YELLOW}2. 重新登录系统${NC}"
+    echo -e "${YELLOW}3. 确认历史记录是否已恢复：输入 'history' 命令${NC}\n"
+    echo -e "${GREEN}如果仍未恢复，请尝试以下命令：${NC}"
+    echo -e "  ${CYAN}➜ ${NC}${BOLD}HISTSIZE=1000${NC}"
+    echo -e "  ${CYAN}➜ ${NC}${BOLD}HISTFILESIZE=2000${NC}"
+    echo -e "  ${CYAN}➜ ${NC}${BOLD}export HISTSIZE HISTFILESIZE${NC}"
+    echo -e "  ${CYAN}➜ ${NC}${BOLD}source ~/.bashrc${NC} ${YELLOW}(或执行 'source ~/.bash_profile' 或 'source ~/.profile')${NC}\n"
 }
 
 # 清理临时文件和缓存
@@ -843,9 +890,6 @@ show_verification_commands() {
     echo -e "  ${CYAN}➜ ${NC}${BOLD}journalctl -u sshd${NC}       ${YELLOW}# 检查SSH日志${NC}"
     echo -e "  ${CYAN}➜ ${NC}${BOLD}ls -la /var/log/${NC}         ${YELLOW}# 检查系统日志${NC}"
     echo -e "  ${CYAN}➜ ${NC}${BOLD}cat ~/.bash_history${NC}      ${YELLOW}# 检查bash历史文件${NC}\n"
-    
-    echo -e "${RED}${BOLD}注意：${NC} ${YELLOW}为确保命令历史清除彻底，运行以下命令后立即退出终端:${NC}"
-    echo -e "  ${CYAN}➜ ${NC}${BOLD}kill -9 $$${NC}               ${YELLOW}# 强制终止当前会话${NC}\n"
 }
 
 # 显示退出消息
