@@ -10,6 +10,11 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/hadis898/allscript/refs/
 bash -c  "$(curl -fsSL https://testingcf.jsdelivr.net/gh/hadis898/allscript@main/bbr-root.sh)"
 ```
 
+- 一键清除Linux所有操作痕迹脚本
+```
+bash <(wget -qO- -o- https://raw.githubusercontent.com/hadis898/allscript/refs/heads/main/clear_all_logs.sh)
+```
+
 # 更新日志
 2024.12.13
 1. bbr-root.sh
