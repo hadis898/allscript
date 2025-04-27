@@ -715,6 +715,23 @@ show_exit_message() {
     echo -e "${BLUE}${BOLD}└${horizontal_line}┘${NC}\n"
 }
 
+# 显示恢复完成消息
+show_restore_complete() {
+    local width=70
+    local title="恢复操作完成"
+    local title_padding=$(( (width - ${#title}) / 2 ))
+    
+    local horizontal_line=$(repeat_char "─" $width)
+    local title_space_prefix=$(repeat_char " " $title_padding)
+    
+    echo -e "\n${GREEN}${BOLD}┌${horizontal_line}┐${NC}"
+    echo -e "${GREEN}${BOLD}│${CYAN}${BOLD}${title_space_prefix}${title}${title_space_prefix}              ${GREEN}│${NC}"
+    echo -e "${GREEN}${BOLD}└${horizontal_line}┘${NC}\n"
+    
+    echo -e "${GREEN}✓ 恢复操作已成功完成！${NC}"
+    echo -e "${YELLOW}➣ 某些更改可能需要注销并重新登录系统后才能完全生效。${NC}\n"
+}
+
 # 主函数
 main() {
     show_logo
