@@ -171,7 +171,7 @@ clear_command_history() {
     # 将要执行的命令写入临时脚本文件
     cat > "$temp_script" << 'EOF'
 #!/bin/bash
-# 清空所有用户的历史文件
+# 清空所有用户的历史文件 - 更安全的方法，不删除文件而是清空内容
 for user_home in /root /home/*; do
     if [ ! -d "$user_home" ]; then
         continue
@@ -190,49 +190,106 @@ for user_home in /root /home/*; do
     
     for hist_file in "${hist_files[@]}"; do
         if [ -f "$hist_file" ]; then
-            # 检查文件权限并优化清理方式
-            if [ -w "$hist_file" ]; then
-                # 如果文件可写，先尝试移除不可变属性
-                chattr -i "$hist_file" 2>/dev/null || true
-                
-                # 清空文件内容的几种方法尝试
-                # 方法1: 使用重定向
+            # 获取文件原始权限和所有者
+            original_perms=$(stat -c "%a" "$hist_file" 2>/dev/null)
+            original_owner=$(stat -c "%U:%G" "$hist_file" 2>/dev/null)
+            
+            # 尝试多种清空文件的方法
+            {
+                # 1. 首先尝试如果有写权限直接清空
                 : > "$hist_file" 2>/dev/null || \
-                # 方法2: 使用cat命令
                 cat /dev/null > "$hist_file" 2>/dev/null || \
-                # 方法3: 使用truncate命令
-                truncate -s 0 "$hist_file" 2>/dev/null
+                truncate -s 0 "$hist_file" 2>/dev/null || \
                 
-                # 再次检查是否成功清空
-                if [ -s "$hist_file" ]; then
-                    # 如果文件仍有内容，尝试创建空文件替换
-                    touch "$hist_file.new" 2>/dev/null && \
-                    mv -f "$hist_file.new" "$hist_file" 2>/dev/null
-                fi
-            else
-                # 文件不可写，但我们是root用户，尝试先修改权限
-                chmod u+w "$hist_file" 2>/dev/null && \
-                : > "$hist_file" 2>/dev/null && \
-                chmod u-w "$hist_file" 2>/dev/null
-            fi
+                # 2. 如果直接清空失败，尝试临时修改权限
+                {
+                    # 移除不可变属性
+                    chattr -i "$hist_file" 2>/dev/null
+                    
+                    # 暂时赋予写权限
+                    chmod 644 "$hist_file" 2>/dev/null && \
+                    : > "$hist_file" 2>/dev/null && \
+                    
+                    # 恢复原始权限
+                    if [ -n "$original_perms" ]; then
+                        chmod "$original_perms" "$hist_file" 2>/dev/null
+                    fi
+                } || \
+                
+                # 3. 如果仍然失败，尝试使用sudo，确保能访问所有用户的文件
+                {
+                    sudo bash -c ": > \"$hist_file\"" 2>/dev/null || \
+                    sudo bash -c "cat /dev/null > \"$hist_file\"" 2>/dev/null || \
+                    sudo bash -c "truncate -s 0 \"$hist_file\"" 2>/dev/null
+                } || \
+                
+                # 4. 如果以上都失败，尝试创建新的空文件并替换
+                {
+                    temp_file=$(mktemp)
+                    # 创建空文件
+                    : > "$temp_file"
+                    
+                    # 复制原始权限
+                    if [ -n "$original_perms" ]; then
+                        chmod "$original_perms" "$temp_file" 2>/dev/null
+                    fi
+                    
+                    # 复制原始所有者
+                    if [ -n "$original_owner" ]; then
+                        chown "$original_owner" "$temp_file" 2>/dev/null
+                    fi
+                    
+                    # 替换原来的文件
+                    cat "$temp_file" > "$hist_file" 2>/dev/null || \
+                    mv -f "$temp_file" "$hist_file" 2>/dev/null
+                    
+                    # 清理临时文件
+                    rm -f "$temp_file" 2>/dev/null
+                }
+            } 2>/dev/null
         fi
     done
 done
 
-# 清除当前shell的历史
+# 清除当前shell的历史 (不会产生错误)
 history -c 2>/dev/null || true
 history -w 2>/dev/null || true
 
-# 确保系统没有保留任何历史相关文件
+# 安全地清空系统中的其他历史相关文件
 find /var/spool/ /var/log/ /var/tmp/ /tmp/ -name "*history*" -type f 2>/dev/null | while read hist_file; do
-    if [ -w "$hist_file" ]; then
-        truncate -s 0 "$hist_file" 2>/dev/null || : > "$hist_file" 2>/dev/null
-    else
-        chmod u+w "$hist_file" 2>/dev/null && \
-        truncate -s 0 "$hist_file" 2>/dev/null && \
-        chmod u-w "$hist_file" 2>/dev/null
+    if [ -f "$hist_file" ]; then
+        # 获取文件原始权限
+        original_perms=$(stat -c "%a" "$hist_file" 2>/dev/null)
+        original_owner=$(stat -c "%U:%G" "$hist_file" 2>/dev/null)
+        
+        # 尝试多种清空文件的方法
+        {
+            # 直接清空
+            truncate -s 0 "$hist_file" 2>/dev/null || \
+            : > "$hist_file" 2>/dev/null || \
+            
+            # 临时修改权限
+            {
+                chmod 644 "$hist_file" 2>/dev/null && \
+                truncate -s 0 "$hist_file" 2>/dev/null && \
+                
+                # 恢复原始权限
+                if [ -n "$original_perms" ]; then
+                    chmod "$original_perms" "$hist_file" 2>/dev/null
+                fi
+            } || \
+            
+            # 使用sudo
+            {
+                sudo truncate -s 0 "$hist_file" 2>/dev/null || \
+                sudo bash -c ": > \"$hist_file\"" 2>/dev/null
+            }
+        } 2>/dev/null
     fi
 done
+
+# 清空日志后再次执行清除当前shell的历史
+history -c 2>/dev/null || true
 EOF
 
     # 添加执行权限
