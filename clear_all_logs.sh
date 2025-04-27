@@ -147,7 +147,7 @@ show_menu() {
     
     # 清理选项部分
     echo -e "${GREEN}清理选项:${NC}"
-    echo -e "  ${MAGENTA}1.${NC} 清除命令历史及bash记录"
+    echo -e "  ${MAGENTA}1.${NC} 清除命令历史及bash记录（会禁用命令历史功能，如需恢复按 9）"
     echo -e "  ${MAGENTA}2.${NC} 清除登录日志和认证记录"
     echo -e "  ${MAGENTA}3.${NC} 清除系统日志与journald记录"
     echo -e "  ${MAGENTA}4.${NC} 清理临时文件和缓存"
