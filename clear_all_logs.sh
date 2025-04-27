@@ -355,7 +355,6 @@ EOF
     export HISTFILESIZE=0
     export HISTCONTROL=ignoreboth:erasedups
     
-    echo -e "\n${GREEN}命令历史已清除并禁用！${NC}\n"
 }
 
 # 永久禁用命令历史记录功能
@@ -699,9 +698,7 @@ EOF
     export HISTCONTROL=ignoredups
     set -o history 2>/dev/null || true
     
-    echo -e "\n${GREEN}${BOLD}命令历史记录功能已恢复！${NC}"
-    echo -e "${YELLOW}所有用户的命令历史将重新开始记录。${NC}"
-    echo -e "${YELLOW}您可能需要重新登录或重启系统使所有更改生效。${NC}\n"
+
 }
 
 # 清除登录日志函数
@@ -1123,6 +1120,7 @@ run_all_operations() {
     
     echo -e "\n${GREEN}${BOLD}全面系统痕迹清理操作已完成${NC}"
     echo -e "\n${CYAN}✓ 所有痕迹已被清除！${NC}\n"
+    echo -e "\n${CYAN}✓ 命令历史功能已禁用，如需恢复按${YELLOW} 9 ${NC}\n"
 }
 
 # 设置退出时清除历史的钩子
@@ -1200,8 +1198,9 @@ show_exit_message() {
 
 # 显示恢复完成消息
 show_restore_complete() {
-    echo -e "\n${GREEN}${BOLD}恢复操作已成功完成！${NC}"
-    echo -e "${YELLOW}某些更改可能需要注销并重新登录系统后才能完全生效。${NC}\n"
+    echo -e "\n${GREEN}${BOLD}命令历史记录功能已恢复！${NC}"
+    echo -e "${YELLOW}所有用户的命令历史将重新开始记录。${NC}"
+    echo -e "${YELLOW}您可能需要重新登录或重启系统使所有更改生效。${NC}\n"
 }
 
 # 主函数
