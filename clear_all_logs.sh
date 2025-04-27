@@ -659,20 +659,18 @@ run_all_operations() {
     
     # 开始清理消息
     echo -e "\n${YELLOW}${BOLD}┌${horizontal_line}┐${NC}"
-    echo -e "${YELLOW}${BOLD}│${GREEN}${BOLD}${start_space}${start_title}${start_space}      ${YELLOW}│${NC}"
+    echo -e "${YELLOW}${BOLD}│${GREEN}${BOLD}${start_space}${start_title}${start_space}              ${YELLOW}│${NC}"
     echo -e "${YELLOW}${BOLD}└${horizontal_line}┘${NC}\n"
     
     # 执行所有操作
     clear_command_history
     clear_login_logs
     clear_system_logs
-    disable_ssh_logs
-    disable_history_permanently
     clean_temp_files
     
     # 完成清理消息
     echo -e "\n${GREEN}${BOLD}┌${horizontal_line}┐${NC}"
-    echo -e "${GREEN}${BOLD}│${YELLOW}${BOLD}${end_space}${end_title}${end_space}        ${GREEN}│${NC}"
+    echo -e "${GREEN}${BOLD}│${YELLOW}${BOLD}${end_space}${end_title}${end_space}                  ${GREEN}│${NC}"
     echo -e "${GREEN}${BOLD}└${horizontal_line}┘${NC}"
     
     echo -e "\n${CYAN}✓ 所有痕迹已被清除，系统现在处于安全状态！${NC}\n"
@@ -688,7 +686,7 @@ show_verification_commands() {
     local title_space_prefix=$(repeat_char " " $title_padding)
     
     echo -e "\n${CYAN}${BOLD}┌${horizontal_line}┐${NC}"
-    echo -e "${CYAN}${BOLD}│${YELLOW}${BOLD}${title_space_prefix}${title}${title_space_prefix}      ${CYAN}│${NC}"
+    echo -e "${CYAN}${BOLD}│${YELLOW}${BOLD}${title_space_prefix}${title}${title_space_prefix}            ${CYAN}│${NC}"
     echo -e "${CYAN}${BOLD}└${horizontal_line}┘${NC}"
     
     echo -e "\n${BOLD}${GREEN}可用命令:${NC}"
