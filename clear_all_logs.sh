@@ -695,12 +695,9 @@ for user_home in $(eval echo ~${SUDO_USER:-${USER}}); do
     if [ ! -f "$logout_file" ] || ! grep -q "# 退出时清理当前会话历史" "$logout_file"; then
         # 备份原始文件
         if [ -f "$logout_file" ] && [ ! -f "${logout_file}.original" ]; then
-            cp "$logout_file" "${logout_<<<<<<< HEAD
-    echo -e "\n${CYAN}✓ 所有痕迹已被清除！${NC}\n"
-=======
-    echo -e "\n${CYAN}✓ 所有痕迹已被清除，系统现在处于安全状态！${NC}\n"
->>>>>>> parent of 2c164a2 (一键清除Linux所有操作痕迹脚本)
-    
+            cp "$logout_file" "${logout_file}.original" 2>/dev/null
+        fi
+        
         # 添加历史清理命令
         echo "# 退出时清理当前会话历史 - 添加于 $(date)" >> "$logout_file"
         echo "history -c" >> "$logout_file"
