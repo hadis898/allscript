@@ -37,7 +37,7 @@ show_logo() {
     
     
     echo -e "${YELLOW}${BOLD}┌${horizontal_line}┐${NC}"
-    echo -e "${YELLOW}${BOLD}│${CYAN}${BOLD}                 Linux系统痕迹清理与管理工具 ${VERSION}              ${YELLOW}│${NC}"
+    echo -e "${YELLOW}${BOLD}│${CYAN}${BOLD}                 Linux系统痕迹清理与管理工具 ${GREEN}${VERSION}${CYAN}${BOLD}              ${YELLOW}│${NC}"
     echo -e "${YELLOW}${BOLD}│${GREEN}                       安全、高效、无痕迹操作                         ${YELLOW}│${NC}"
     echo -e "${YELLOW}${BOLD}└${horizontal_line}┘${NC}\n"
 }
