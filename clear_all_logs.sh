@@ -1119,7 +1119,7 @@ run_all_operations() {
     setup_logout_cleaner
     
     echo -e "\n${GREEN}${BOLD}全面系统痕迹清理操作已完成${NC}"
-    echo -e "\n${CYAN}✓ 所有痕迹已被清除！${NC}\n"
+    echo -e "\n${CYAN}✓ 所有痕迹已被清除！${NC}"
     echo -e "\n${CYAN}✓ 命令历史功能已禁用，如需恢复按${YELLOW} 9 ${NC}\n"
 }
 
