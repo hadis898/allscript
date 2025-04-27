@@ -31,7 +31,7 @@ repeat_char() {
 # Logo显示函数
 show_logo() {
     clear
-    echo -e "${CYAN}${BOLD}Linux系统痕迹清理与管理工具 ${GREEN}${VERSION}${NC}"
+    echo -e "${CYAN}${BOLD}【Linux系统痕迹清理与管理工具】 ${GREEN}${VERSION}${NC}"
     echo -e "${GREEN}安全、高效、无痕迹操作${NC}\n"
 }
 
@@ -137,7 +137,7 @@ confirm() {
 
 # 主菜单函数
 show_menu() {
-    local title="Linux系统痕迹清理与管理工具"
+    local title="【痕迹清除 - 操作菜单】"
     
     echo -e "\n${MAGENTA}${BOLD}${title}${NC}\n"
     
