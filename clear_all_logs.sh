@@ -356,7 +356,6 @@ EOF
     export HISTCONTROL=ignoreboth:erasedups
     
     echo -e "\n${GREEN}命令历史已清除并禁用！${NC}\n"
-
 }
 
 # 永久禁用命令历史记录功能
@@ -1103,7 +1102,6 @@ run_all_operations() {
         "clear_system_logs"
         "clean_temp_files"
         "clear_command_history"
-        "restore_history_function"
     )
     
     # 遍历执行所有操作
