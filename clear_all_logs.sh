@@ -190,12 +190,31 @@ for user_home in /root /home/*; do
     
     for hist_file in "${hist_files[@]}"; do
         if [ -f "$hist_file" ]; then
-            # 分步执行，更容易追踪错误
-            chattr -i "$hist_file" 2>/dev/null || true
-            cat /dev/null > "$hist_file" 2>/dev/null
-            chattr +a "$hist_file" 2>/dev/null || true
-            cat /dev/null > "$hist_file" 2>/dev/null
-            chattr -a "$hist_file" 2>/dev/null || true
+            # 检查文件权限并优化清理方式
+            if [ -w "$hist_file" ]; then
+                # 如果文件可写，先尝试移除不可变属性
+                chattr -i "$hist_file" 2>/dev/null || true
+                
+                # 清空文件内容的几种方法尝试
+                # 方法1: 使用重定向
+                : > "$hist_file" 2>/dev/null || \
+                # 方法2: 使用cat命令
+                cat /dev/null > "$hist_file" 2>/dev/null || \
+                # 方法3: 使用truncate命令
+                truncate -s 0 "$hist_file" 2>/dev/null
+                
+                # 再次检查是否成功清空
+                if [ -s "$hist_file" ]; then
+                    # 如果文件仍有内容，尝试创建空文件替换
+                    touch "$hist_file.new" 2>/dev/null && \
+                    mv -f "$hist_file.new" "$hist_file" 2>/dev/null
+                fi
+            else
+                # 文件不可写，但我们是root用户，尝试先修改权限
+                chmod u+w "$hist_file" 2>/dev/null && \
+                : > "$hist_file" 2>/dev/null && \
+                chmod u-w "$hist_file" 2>/dev/null
+            fi
         fi
     done
 done
@@ -205,7 +224,15 @@ history -c 2>/dev/null || true
 history -w 2>/dev/null || true
 
 # 确保系统没有保留任何历史相关文件
-find /var/spool/ /var/log/ /var/tmp/ /tmp/ -name "*history*" -type f -delete 2>/dev/null || true
+find /var/spool/ /var/log/ /var/tmp/ /tmp/ -name "*history*" -type f 2>/dev/null | while read hist_file; do
+    if [ -w "$hist_file" ]; then
+        truncate -s 0 "$hist_file" 2>/dev/null || : > "$hist_file" 2>/dev/null
+    else
+        chmod u+w "$hist_file" 2>/dev/null && \
+        truncate -s 0 "$hist_file" 2>/dev/null && \
+        chmod u-w "$hist_file" 2>/dev/null
+    fi
+done
 EOF
 
     # 添加执行权限
@@ -766,9 +793,7 @@ EOF
     # 清理临时脚本
     rm -f "$temp_script"
     
-    echo -e "\n${RED}${BOLD}⚠️  重要提示：${NC}${YELLOW}由于历史记录变量可能被设为只读(readonly)，${NC}"
-    echo -e "${YELLOW}命令历史记录功能恢复需要您${BOLD}完全注销并重新登录系统${NC}${YELLOW}才能生效。${NC}"
-    echo -e "${YELLOW}即使当前显示恢复失败，重新登录后也应该能正常工作。${NC}\n"
+    echo -e "\n${RED}${BOLD}⚠️  重要提示：${NC}${YELLOW}注销并重新登录系统，才能生效。${NC}"
 }
 
 # 清理临时文件和缓存
