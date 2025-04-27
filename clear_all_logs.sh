@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================
 # 一键清除Linux所有操作痕迹 v2025.04.27
-# By Uyiosa Idahosa 1
+# By Uyiosa Idahosa2
 # 使用方法：sudo ./clear_all_logs.sh
 # ============================================================
 
@@ -124,7 +124,8 @@ confirm() {
         yn_hint="N"
     fi
     
-    read -p "$(echo -e "${CYAN}$prompt ${prompt_symbol}:${NC} ")" response
+    echo -ne "${CYAN}$prompt ${prompt_symbol}:${NC} "
+    read response
     
     if [[ -z "$response" ]]; then
         response=$yn_hint
@@ -142,20 +143,15 @@ show_menu() {
     local width=70
     local title="【 清理与恢复操作菜单 】"
     local title_padding=$(( (width - ${#title}) / 2 ))
-    local version_str="版本: ${VERSION}"
-    local version_padding=$(( width - ${#version_str} - 2 ))
-    
-    # 生成重复字符的函数已移至全局范围
     
     local horizontal_line=$(repeat_char "─" $width)
     local title_space_prefix=$(repeat_char " " $title_padding)
-    local version_space_suffix=$(repeat_char " " $version_padding)
     
     echo -e "\n${BOLD}${CYAN}╭${horizontal_line}╮${NC}"
     echo -e "${BOLD}${CYAN}│${MAGENTA}${BOLD}${title_space_prefix}${title}${title_space_prefix}${CYAN}│${NC}"
     echo -e "${BOLD}${CYAN}├${horizontal_line}┤${NC}"
     
-    # 清理选项部分
+    # 清理选项部分 - 确保所有行的长度一致
     echo -e "${BOLD}${CYAN}│${GREEN}${BOLD}                      清理选项                           ${CYAN}│${NC}"
     echo -e "${BOLD}${CYAN}│                                                                  │${NC}"
     echo -e "${BOLD}${CYAN}│${NC}  ${MAGENTA}1.${NC} 清除命令历史及bash记录      ${MAGENTA}2.${NC} 清除登录日志和认证记录  ${BOLD}${CYAN}│${NC}"
@@ -163,17 +159,16 @@ show_menu() {
     echo -e "${BOLD}${CYAN}│${NC}  ${MAGENTA}5.${NC} 永久禁用命令历史记录功能    ${MAGENTA}6.${NC} 清理临时文件和缓存      ${BOLD}${CYAN}│${NC}"
     echo -e "${BOLD}${CYAN}│${NC}  ${MAGENTA}7.${NC} 一键执行所有清理操作                                  ${BOLD}${CYAN}│${NC}"
     
-    # 恢复选项部分
+    # 恢复选项部分 - 确保所有行的长度一致
     echo -e "${BOLD}${CYAN}│                                                                  │${NC}"
     echo -e "${BOLD}${CYAN}│${GREEN}${BOLD}                      恢复选项                           ${CYAN}│${NC}"
     echo -e "${BOLD}${CYAN}│                                                                  │${NC}"
     echo -e "${BOLD}${CYAN}│${NC}  ${MAGENTA}8.${NC} 恢复SSH日志记录功能         ${MAGENTA}9.${NC} 恢复命令历史记录功能    ${BOLD}${CYAN}│${NC}"
     echo -e "${BOLD}${CYAN}│${NC}  ${MAGENTA}0.${NC} 退出程序                                              ${BOLD}${CYAN}│${NC}"
     echo -e "${BOLD}${CYAN}│                                                                  │${NC}"
-    echo -e "${BOLD}${CYAN}│${YELLOW} ${version_str}${version_space_suffix}${CYAN}│${NC}"
     echo -e "${BOLD}${CYAN}╰${horizontal_line}╯${NC}"
     
-    echo -e "\n${CYAN}请选择操作选项 ${YELLOW}[0-9]${NC}: "
+    echo -ne "${CYAN}请选择操作选项 ${YELLOW}[0-9]${NC}: "
 }
 
 # 清除命令历史函数
@@ -353,8 +348,7 @@ disable_ssh_logs() {
             
             # 禁用特定的SSH日志类型
             for setting in "LogLevel QUIET" "SyslogFacility AUTHPRIV" "PrintLastLog no" "PrintMotd no"; do
-                setting_name=$(echo "$setting" | cut -d' ' -f1)
-                setting_value=$(echo "$setting" | cut -d' ' -f2)
+                setting_name=$(echo "$setting" | cut -d" " -f1)
                 
                 # 如果已经有此设置，则修改它
                 if grep -q "^$setting_name" /etc/ssh/sshd_config; then
@@ -520,9 +514,20 @@ restore_history_function() {
         export HISTFILESIZE=2000 2>/dev/null || true
     '
     
-    echo -e "${RED}${BOLD}重要提示：${NC}${YELLOW}由于历史记录变量可能被设为只读(readonly)，${NC}"
+    local width=60
+    local title="命令历史恢复提示"
+    local title_padding=$(( (width - ${#title}) / 2 ))
+    
+    local horizontal_line=$(repeat_char "─" $width)
+    local title_space_prefix=$(repeat_char " " $title_padding)
+    
+    echo -e "\n${BOLD}${YELLOW}╭${horizontal_line}╮${NC}"
+    echo -e "${BOLD}${YELLOW}│${RED}${BOLD}${title_space_prefix}${title}${title_space_prefix}${YELLOW}│${NC}"
+    echo -e "${BOLD}${YELLOW}╰${horizontal_line}╯${NC}\n"
+    
+    echo -e "${RED}${BOLD}⚠️  重要提示：${NC}${YELLOW}由于历史记录变量可能被设为只读(readonly)，${NC}"
     echo -e "${YELLOW}命令历史记录功能恢复需要您${BOLD}完全注销并重新登录系统${NC}${YELLOW}才能生效。${NC}"
-    echo -e "${YELLOW}即使当前显示恢复失败，重新登录后也应该能正常工作。${NC}"
+    echo -e "${YELLOW}即使当前显示恢复失败，重新登录后也应该能正常工作。${NC}\n"
 }
 
 # 清理临时文件和缓存
@@ -602,7 +607,6 @@ show_verification_commands() {
     local title="验证清理效果的命令"
     local title_padding=$(( (width - ${#title}) / 2 ))
     
-    # 使用repeat_char函数（已在show_menu中定义）
     local horizontal_line=$(repeat_char "─" $width)
     local title_space_prefix=$(repeat_char " " $title_padding)
     
