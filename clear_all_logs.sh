@@ -4,10 +4,6 @@
 # By Uyiosa Idahosa
 # ============================================================
 
-# 只清理历史不禁用历史记录功能
-history -c 2>/dev/null || true
-history -w 2>/dev/null || true
-
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -35,7 +31,7 @@ repeat_char() {
 # Logo显示函数
 show_logo() {
     clear
-    echo -e "${CYAN}${BOLD}【Linux系统痕迹清理与管理工具】 ${GREEN}${VERSION}${NC}"
+    echo -e "${CYAN}${BOLD}Linux系统痕迹清理与管理工具 ${GREEN}${VERSION}${NC}"
     echo -e "${GREEN}安全、高效、无痕迹操作${NC}\n"
 }
 
@@ -141,7 +137,7 @@ confirm() {
 
 # 主菜单函数
 show_menu() {
-    local title="【痕迹清除 - 操作菜单】"
+    local title="Linux系统痕迹清理与管理工具"
     
     echo -e "\n${MAGENTA}${BOLD}${title}${NC}\n"
     
@@ -247,10 +243,6 @@ EOF
     
     # 清理临时脚本
     rm -f "$temp_script"
-    
-    # 仅清除当前会话历史而不禁用历史记录功能
-    history -c 2>/dev/null || true
-    history -w 2>/dev/null || true
 }
 
 # 清除登录日志函数
@@ -586,6 +578,134 @@ EOF
     rm -f "$temp_script"
 }
 
+# 永久禁用历史记录
+disable_history_permanently() {
+    # 创建临时脚本文件
+    local temp_script=$(mktemp)
+    
+    # 将要执行的命令写入临时脚本文件
+    cat > "$temp_script" << 'EOF'
+#!/bin/bash
+# 为所有用户添加全局设置
+for profile in /etc/profile /etc/bash.bashrc /etc/profile.d/history.sh; do
+    # 确保目录存在
+    mkdir -p $(dirname "$profile") 2>/dev/null
+    
+    # 备份原始配置(如果文件存在且备份不存在)
+    if [ -f "$profile" ] && [ ! -f "${profile}.original" ]; then
+        cp "$profile" "${profile}.original" 2>/dev/null
+    fi
+    
+    # 检查文件是否已经包含禁用历史的设置
+    if [ -f "$profile" ] && grep -q "# 禁用命令历史记录 - 系统安全设置" "$profile"; then
+        # 已经包含禁用设置，跳过此文件
+        continue
+    fi
+    
+    # 移除任何现有的HISTSIZE设置
+    if [ -f "$profile" ]; then
+        sed -i "/HISTSIZE=/d" "$profile" 2>/dev/null
+        sed -i "/HISTFILESIZE=/d" "$profile" 2>/dev/null
+        sed -i "/HISTLOG=/d" "$profile" 2>/dev/null
+        sed -i "/unset HISTFILE/d" "$profile" 2>/dev/null
+        sed -i "/readonly HISTFILE/d" "$profile" 2>/dev/null
+        sed -i "/readonly HISTSIZE/d" "$profile" 2>/dev/null
+        sed -i "/readonly HISTFILESIZE/d" "$profile" 2>/dev/null
+    fi
+    
+    # 添加禁用历史的设置
+    echo "# 禁用命令历史记录 - 系统安全设置" >> "$profile"
+    echo "HISTSIZE=0" >> "$profile"
+    echo "HISTFILESIZE=0" >> "$profile"
+    echo "HISTLOG=" >> "$profile"
+    echo "unset HISTFILE" >> "$profile"
+    echo "export HISTSIZE HISTFILESIZE HISTLOG" >> "$profile"
+done
+
+# 为bash用户设置readonly属性（更强的保护）
+# 确保history.sh文件中没有重复配置
+if [ -f "/etc/profile.d/history.sh" ] && ! grep -q "readonly HISTFILE" "/etc/profile.d/history.sh"; then
+    echo "readonly HISTFILE" >> /etc/profile.d/history.sh
+    echo "readonly HISTSIZE" >> /etc/profile.d/history.sh
+    echo "readonly HISTFILESIZE" >> /etc/profile.d/history.sh
+fi
+
+# 设置当前会话
+export HISTSIZE=0
+export HISTFILESIZE=0
+unset HISTFILE 2>/dev/null || true
+EOF
+
+    # 添加执行权限
+    chmod +x "$temp_script"
+    
+    # 执行临时脚本
+    run_silent "永久禁用命令历史记录" "$temp_script"
+    
+    # 清理临时脚本
+    rm -f "$temp_script"
+}
+
+# 恢复命令历史记录功能
+restore_history_function() {
+    # 创建临时脚本文件
+    local temp_script=$(mktemp)
+    
+    # 将要执行的命令写入临时脚本文件
+    cat > "$temp_script" << 'EOF'
+#!/bin/bash
+# 恢复原始配置文件
+for profile in /etc/profile /etc/bash.bashrc /etc/profile.d/history.sh; do
+    if [ -f "${profile}.original" ]; then
+        cp "${profile}.original" "$profile" 2>/dev/null
+        # 删除备份文件，确保下次禁用时可以创建新的备份
+        rm -f "${profile}.original" 2>/dev/null
+    else
+        # 如果没有原始备份，清除禁用历史的设置
+        if [ -f "$profile" ]; then
+            sed -i "/# 禁用命令历史记录/d" "$profile" 2>/dev/null
+            sed -i "/HISTSIZE=0/d" "$profile" 2>/dev/null
+            sed -i "/HISTFILESIZE=0/d" "$profile" 2>/dev/null
+            sed -i "/HISTLOG=/d" "$profile" 2>/dev/null
+            sed -i "/unset HISTFILE/d" "$profile" 2>/dev/null
+            sed -i "/export HISTSIZE HISTFILESIZE HISTLOG/d" "$profile" 2>/dev/null
+            sed -i "/readonly HISTFILE/d" "$profile" 2>/dev/null
+            sed -i "/readonly HISTSIZE/d" "$profile" 2>/dev/null
+            sed -i "/readonly HISTFILESIZE/d" "$profile" 2>/dev/null
+        fi
+    fi
+done
+
+# 完全删除history.sh文件（如果存在）
+if [ -f "/etc/profile.d/history.sh" ]; then
+    rm -f "/etc/profile.d/history.sh" 2>/dev/null
+fi
+
+# 添加默认历史设置到profile
+if [ -f "/etc/profile" ]; then
+    echo "# 恢复默认命令历史记录设置" >> /etc/profile
+    echo "HISTSIZE=1000" >> /etc/profile
+    echo "HISTFILESIZE=2000" >> /etc/profile
+    echo "export HISTSIZE HISTFILESIZE" >> /etc/profile
+fi
+
+# 设置当前会话（虽然readonly变量无法在当前会话修改）
+export HISTSIZE=1000 2>/dev/null || true
+export HISTFILESIZE=2000 2>/dev/null || true
+EOF
+
+    # 添加执行权限
+    chmod +x "$temp_script"
+    
+    # 执行临时脚本
+    run_silent "恢复命令历史记录功能" "$temp_script"
+    
+    # 清理临时脚本
+    rm -f "$temp_script"
+    
+    echo -e "\n${RED}${BOLD}⚠️  重要提示：${NC}${YELLOW}注销并重新登录系统，才能生效。${NC}"
+}
+
 # 清理临时文件和缓存
 clean_temp_files() {
     # 创建临时脚本文件
@@ -645,12 +765,12 @@ EOF
 run_all_operations() {
     echo -e "\n${GREEN}${BOLD}开始全面系统痕迹清理${NC}\n"
     
-    # 定义要执行的操作数组，将清除命令历史放在最后
+    # 定义要执行的操作数组
     local operations=(
+        "clear_command_history"
         "clear_login_logs"
         "clear_system_logs"
         "clean_temp_files"
-        "clear_command_history"
     )
     
     # 遍历执行所有操作
@@ -663,71 +783,8 @@ run_all_operations() {
         fi
     done
     
-    # 再次清除当前shell的历史记录
-    history -c 2>/dev/null || true
-    history -w 2>/dev/null || true
-    
-    # 设置会话结束时清理历史钩子
-    setup_logout_cleaner
-    
     echo -e "\n${GREEN}${BOLD}全面系统痕迹清理操作已完成${NC}"
-    echo -e "\n${CYAN}✓ 所有痕迹已被清除！${NC}\n"
-}
-
-# 设置退出时清除历史的钩子
-setup_logout_cleaner() {
-    # 创建临时脚本文件
-    local temp_script=$(mktemp)
-    
-    # 将要执行的命令写入临时脚本文件
-    cat > "$temp_script" << 'EOF'
-#!/bin/bash
-# 为当前用户添加bash_logout设置以清除会话历史
-for user_home in $(eval echo ~${SUDO_USER:-${USER}}); do
-    if [ ! -d "$user_home" ]; then
-        continue
-    fi
-    
-    # 创建或更新.bash_logout文件
-    logout_file="$user_home/.bash_logout"
-    
-    # 如果文件不存在或者不包含历史清理命令，则添加
-    if [ ! -f "$logout_file" ] || ! grep -q "# 退出时清理当前会话历史" "$logout_file"; then
-        # 备份原始文件
-        if [ -f "$logout_file" ] && [ ! -f "${logout_file}.original" ]; then
-            cp "$logout_file" "${logout_file}.original" 2>/dev/null
-        fi
-        
-        # 添加历史清理命令
-        echo "# 退出时清理当前会话历史 - 添加于 $(date)" >> "$logout_file"
-        echo "history -c" >> "$logout_file"
-        echo "history -w" >> "$logout_file"
-        
-        # 设置适当的权限
-        chmod 644 "$logout_file" 2>/dev/null
-        chown $(stat -c "%U:%G" "$user_home") "$logout_file" 2>/dev/null
-    fi
-done
-
-# 通过trap机制设置当前会话退出时的清理
-trap 'history -c; history -w' EXIT
-EOF
-
-    # 添加执行权限
-    chmod +x "$temp_script"
-    
-    # 执行临时脚本
-    run_silent "设置退出会话时清除历史记录" "$temp_script"
-    
-    # 清理临时脚本
-    rm -f "$temp_script"
-    
-    # 直接在当前会话中设置退出钩子
-    trap 'history -c; history -w' EXIT
-    
-    # 清理当前历史
-    history -c 2>/dev/null || true
-    history -w 2>/dev/null || true
+    echo -e "\n${CYAN}✓ 所有痕迹已被清除，系统现在处于安全状态！${NC}\n"
 }
 
 # 显示验证命令
@@ -764,9 +821,6 @@ main() {
     # 处理命令行参数
     case "$1" in
         -a|--all)
-            # 清除当前历史但不禁用功能
-            history -c 2>/dev/null || true
-            
             run_all_operations
             show_verification_commands
             
@@ -774,11 +828,6 @@ main() {
             local end_time=$(date +%s)
             local duration=$((end_time - start_time))
             echo -e "${CYAN}总执行时间: ${duration} 秒${NC}"
-            
-            # 清理当前历史
-            history -c 2>/dev/null || true
-            history -w 2>/dev/null || true
-            
             exit 0
             ;;
         -h|--help)
@@ -810,13 +859,6 @@ main() {
             9) restore_history_function ;;
             0) 
                 show_exit_message
-                
-                # 如果选择了清理操作，再次清除历史记录以确保完全清除
-                if [[ $choice =~ [1-5] ]]; then
-                    history -c 2>/dev/null || true
-                    history -w 2>/dev/null || true
-                fi
-                
                 exit 0
                 ;;
             *)
