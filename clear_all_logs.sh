@@ -147,7 +147,7 @@ show_menu() {
     
     # 清理选项部分
     echo -e "${GREEN}清理选项:${NC}"
-    echo -e "  ${MAGENTA}1.${NC} 清除命令历史及bash记录"
+    echo -e "  ${MAGENTA}1.${NC} 清除命令历史及bash记录 ${CYAN}[重启后恢复]${NC}"
     echo -e "  ${MAGENTA}2.${NC} 清除登录日志和认证记录"
     echo -e "  ${MAGENTA}3.${NC} 清除系统日志与journald记录"
     echo -e "  ${MAGENTA}4.${NC} 清理临时文件和缓存"
@@ -156,7 +156,7 @@ show_menu() {
     # 禁用选项部分
     echo -e "\n${GREEN}禁用选项:${NC}"
     echo -e "  ${MAGENTA}6.${NC} 禁用SSH日志记录"
-    echo -e "  ${MAGENTA}7.${NC} 永久禁用命令历史记录功能"
+    echo -e "  ${MAGENTA}7.${NC} 永久禁用命令历史记录功能 ${RED}[永久生效]${NC}"
     
     # 恢复选项部分
     echo -e "\n${GREEN}恢复选项:${NC}"
@@ -169,15 +169,29 @@ show_menu() {
 
 # 清除命令历史函数
 clear_command_history() {
+    # 首先检查是否已经永久禁用了历史，如果是，给出提示
+    if [ -f "/etc/profile.d/disable_history.sh" ]; then
+        echo -e "\n${YELLOW}⚠️ 检测到已经永久禁用了命令历史记录功能。${NC}"
+        echo -e "${YELLOW}当前操作可能与永久禁用设置冲突，请先执行选项9恢复历史记录功能后再使用此选项。${NC}\n"
+        
+        if ! confirm "是否仍然继续？" "n"; then
+            echo -e "${CYAN}操作已取消${NC}\n"
+            return 1
+        fi
+    fi
+
     # 创建临时脚本文件
     local temp_script=$(mktemp)
     
     # 将要执行的命令写入临时脚本文件
     cat > "$temp_script" << 'EOF'
 #!/bin/bash
-# 确保创建备份目录
-mkdir -p /tmp/.history_backups 2>/dev/null
-chmod 700 /tmp/.history_backups 2>/dev/null
+# 设置备份目录
+backup_dir="/var/tmp/.history_backups"
+mkdir -p "$backup_dir" 2>/dev/null
+chmod 700 "$backup_dir" 2>/dev/null
+
+echo "正在备份并清除历史记录..."
 
 # 清空所有用户的历史文件
 for user_home in /root /home/*; do
@@ -205,143 +219,142 @@ for user_home in /root /home/*; do
     
     for hist_file in "${hist_files[@]}"; do
         if [ -f "$hist_file" ]; then
-            # 备份历史文件(可选)
-            # cp -f "$hist_file" "/tmp/.history_backups/${user}_$(basename $hist_file)_${timestamp}" 2>/dev/null
+            # 备份历史文件(用于重启后恢复)
+            if [ -s "$hist_file" ]; then  # 只备份非空文件
+                file_basename=$(basename "$hist_file")
+                backup_file="$backup_dir/${user}_${file_basename}_${timestamp}"
+                cp -f "$hist_file" "$backup_file" 2>/dev/null
+                # 记录原始权限
+                original_perms=$(stat -c "%a" "$hist_file" 2>/dev/null)
+                echo "$original_perms" > "$backup_file.perms" 2>/dev/null
+            fi
             
-            # 检查文件权限并优化清理方式
+            # 清空历史文件
             if [ -w "$hist_file" ]; then
-                # 如果文件可写，先尝试移除不可变属性
-                chattr -i "$hist_file" 2>/dev/null || true
-                
-                # 方法1: 先用shred安全地覆盖文件内容
-                if command -v shred >/dev/null 2>&1; then
-                    shred -fuz "$hist_file" 2>/dev/null || true
-                fi
-                
-                # 方法2: 使用多种清空文件方式
+                # 如果文件可写，使用多种方法清空文件内容
                 : > "$hist_file" 2>/dev/null || \
                 cat /dev/null > "$hist_file" 2>/dev/null || \
                 truncate -s 0 "$hist_file" 2>/dev/null || \
                 echo -n "" > "$hist_file" 2>/dev/null
                 
-                # 方法3: 如果文件仍有内容，创建新的空文件替换
+                # 如果文件仍有内容，创建新的空文件替换
                 if [ -s "$hist_file" ]; then
                     rm -f "$hist_file" 2>/dev/null
                     touch "$hist_file" 2>/dev/null
                 fi
-                
-                # 方法4: 设置不可写权限防止新记录写入
-                chmod 400 "$hist_file" 2>/dev/null
             else
                 # 文件不可写，尝试修改权限后清空
                 chmod u+w "$hist_file" 2>/dev/null
                 : > "$hist_file" 2>/dev/null
-                chmod 400 "$hist_file" 2>/dev/null
-            fi
-            
-            # 检查是否成功清空
-            if [ -s "$hist_file" ]; then
-                # 最后手段: 使用文件系统级删除重建
-                rm -f "$hist_file" 2>/dev/null
-                touch "$hist_file" 2>/dev/null
-                chmod 400 "$hist_file" 2>/dev/null
-            fi
-        fi
-    done
-    
-    # 设置HISTSIZE和HISTFILESIZE为0
-    for profile_file in "$user_home/.bashrc" "$user_home/.bash_profile" "$user_home/.profile"; do
-        if [ -f "$profile_file" ] && [ -w "$profile_file" ]; then
-            # 仅当文件中不存在相关设置时添加
-            if ! grep -q "HISTSIZE=0" "$profile_file"; then
-                echo -e "\n# 临时禁用历史记录 - $(date)" >> "$profile_file"
-                echo "export HISTSIZE=0" >> "$profile_file"
-                echo "export HISTFILESIZE=0" >> "$profile_file"
-                echo "export HISTCONTROL=ignoreboth:erasedups" >> "$profile_file"
             fi
         fi
     done
 done
-
-# 设置全局历史文件大小限制
-if [ -f "/etc/profile" ] && [ -w "/etc/profile" ]; then
-    if ! grep -q "# 全局历史记录限制" "/etc/profile"; then
-        echo -e "\n# 全局历史记录限制 - $(date)" >> /etc/profile
-        echo "export HISTSIZE=0" >> /etc/profile
-        echo "export HISTFILESIZE=0" >> /etc/profile
-        echo "export HISTCONTROL=ignoreboth:erasedups" >> /etc/profile
-    fi
-fi
-
-if [ -d "/etc/profile.d" ] && [ -w "/etc/profile.d" ]; then
-    echo '#!/bin/bash
-# 全局禁用历史记录 - 创建于 '$(date)'
-export HISTSIZE=0
-export HISTFILESIZE=0
-export HISTCONTROL=ignoreboth:erasedups
-' > /etc/profile.d/no_history.sh
-    chmod +x /etc/profile.d/no_history.sh
-fi
 
 # 清除当前shell的历史
 history -c 2>/dev/null || true
 history -w 2>/dev/null || true
 
-# 设置当前会话变量
-export HISTSIZE=0
-export HISTFILESIZE=0
-export HISTCONTROL=ignoreboth:erasedups
+# 创建恢复脚本
+cat > "$backup_dir/restore_history.sh" << 'EOFINNER'
+#!/bin/bash
+# 延迟几秒以确保系统已完全启动
+sleep 5
 
-# 确保系统没有保留任何历史相关文件
-find /var/spool/ /var/log/ /var/tmp/ /tmp/ -name "*history*" -type f 2>/dev/null | while read hist_file; do
-    if [ -w "$hist_file" ]; then
-        rm -f "$hist_file" 2>/dev/null || truncate -s 0 "$hist_file" 2>/dev/null
+# 恢复备份的历史文件
+backup_dir="/var/tmp/.history_backups"
+if [ ! -d "$backup_dir" ]; then
+    echo "备份目录不存在，无法恢复历史记录" >&2
+    exit 1
+fi
+
+# 检查是否已经恢复过
+if [ -f "$backup_dir/.restored" ]; then
+    echo "$(date): 历史记录已经恢复过，跳过操作" >> /tmp/history_restore.log
+    exit 0
+fi
+
+echo "$(date): 正在恢复历史记录文件..." >> /tmp/history_restore.log
+
+# 处理每个备份的历史文件
+find "$backup_dir" -type f -not -name "*.perms" -not -name "*.sh" | while read backup_file; do
+    # 提取用户名和文件类型
+    filename=$(basename "$backup_file")
+    user=$(echo "$filename" | cut -d'_' -f1)
+    file_type=$(echo "$filename" | cut -d'_' -f2)
+    
+    # 确定目标路径
+    if [ "$user" = "root" ]; then
+        target_path="/root/.$file_type"
     else
-        chmod u+w "$hist_file" 2>/dev/null && rm -f "$hist_file" 2>/dev/null
-    fi
-done
-
-# 创建或更新所有用户的.bash_logout
-for user_home in /root /home/*; do
-    if [ ! -d "$user_home" ]; then
-        continue
+        target_path="/home/$user/.$file_type"
     fi
     
-    # 创建或更新.bash_logout文件
-    logout_file="$user_home/.bash_logout"
-    
-    # 如果文件不存在或者不包含历史清理命令，则添加
-    if [ ! -f "$logout_file" ] || ! grep -q "# 退出时清理历史" "$logout_file"; then
-        # 备份原始文件
-        if [ -f "$logout_file" ] && [ ! -f "${logout_file}.original" ]; then
-            cp "$logout_file" "${logout_file}.original" 2>/dev/null
+    # 恢复文件
+    if [ -d "$(dirname "$target_path")" ]; then
+        # 恢复文件内容
+        cp -f "$backup_file" "$target_path" 2>/dev/null
+        
+        # 恢复原始权限
+        perms_file="${backup_file}.perms"
+        if [ -f "$perms_file" ]; then
+            original_perms=$(cat "$perms_file")
+            if [[ "$original_perms" =~ ^[0-9]+$ ]]; then
+                chmod "$original_perms" "$target_path" 2>/dev/null
+            fi
         fi
         
-        # 添加历史清理命令
-        echo "# 退出时清理历史 - 添加于 $(date)" > "$logout_file"
-        echo "history -c" >> "$logout_file"
-        echo "history -w" >> "$logout_file"
-        echo "rm -f $user_home/.bash_history 2>/dev/null" >> "$logout_file"
-        echo "touch $user_home/.bash_history 2>/dev/null" >> "$logout_file"
-        echo "chmod 400 $user_home/.bash_history 2>/dev/null" >> "$logout_file"
-        
-        # 设置适当的权限
-        chmod 644 "$logout_file" 2>/dev/null
-        if [ -d "$user_home" ]; then
-            chown $(stat -c "%U:%G" "$user_home") "$logout_file" 2>/dev/null || true
+        # 记录恢复结果
+        if [ -f "$target_path" ]; then
+            echo "$(date): 已恢复 $target_path" >> /tmp/history_restore.log
+        else
+            echo "$(date): 恢复失败 $target_path" >> /tmp/history_restore.log
         fi
     fi
 done
 
-# 清除共享内存中的历史记录
-ipcs -m | grep -v "0x" | awk '{print $1}' | xargs -n 1 ipcrm -m 2>/dev/null || true
+# 防止重复恢复
+touch "$backup_dir/.restored"
+
+echo "$(date): 历史记录恢复完成" >> /tmp/history_restore.log
+EOFINNER
+
+chmod +x "$backup_dir/restore_history.sh"
+
+# 创建启动服务或使用crontab
+if command -v systemctl >/dev/null 2>&1; then
+    # 使用systemd服务
+    cat > "/etc/systemd/system/restore-history.service" << EOFSERVICE
+[Unit]
+Description=Restore command history at boot
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /var/tmp/.history_backups/restore_history.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOFSERVICE
+
+    # 启用服务
+    systemctl daemon-reload 2>/dev/null
+    systemctl enable restore-history.service 2>/dev/null
+else
+    # 如果没有systemd，尝试使用crontab
+    (crontab -l 2>/dev/null | grep -v "restore_history.sh"; echo "@reboot /bin/bash /var/tmp/.history_backups/restore_history.sh") | crontab - 2>/dev/null
+fi
+
+# 添加一个检查点文件，避免重复恢复
+touch "$backup_dir/.needs_restore"
 EOF
 
     # 添加执行权限
     chmod +x "$temp_script"
     
     # 执行临时脚本
-    run_silent "正在清除命令历史" "$temp_script"
+    run_silent "正在清除命令历史(下次启动将自动恢复)" "$temp_script"
     
     # 清理临时脚本
     rm -f "$temp_script"
@@ -350,18 +363,41 @@ EOF
     history -c 2>/dev/null || true
     history -w 2>/dev/null || true
     
-    # 直接在当前shell设置变量
+    # 设置当前会话禁用历史
     export HISTSIZE=0
     export HISTFILESIZE=0
-    export HISTCONTROL=ignoreboth:erasedups
     
-    echo -e "\n${GREEN}命令历史已清除并临时禁用！${NC}\n"
-    echo -e "${YELLOW}提示：此方法会临时禁用历史记录功能，但下次系统重启后可能会恢复。${NC}"
+    echo -e "\n${GREEN}命令历史已清除！${NC}\n"
+    echo -e "${YELLOW}提示：当前会话的历史记录已被清除。${NC}"
+    echo -e "${YELLOW}系统重启后会自动恢复正常的历史记录功能。${NC}"
     echo -e "${YELLOW}如需永久禁用，请使用"永久禁用命令历史记录功能"选项。${NC}\n"
 }
 
 # 永久禁用命令历史记录功能
 disable_history_permanently() {
+    # 检查是否存在临时清除的设置，如果有则给出提示
+    if [ -d "/var/tmp/.history_backups" ]; then
+        echo -e "\n${YELLOW}⚠️ 检测到已经使用临时清除命令历史功能。${NC}"
+        echo -e "${YELLOW}当前操作将覆盖临时清除设置，系统重启后将不会恢复历史记录。${NC}\n"
+        
+        if confirm "是否清除临时清除设置并继续？" "y"; then
+            # 清除临时清除的设置
+            if command -v systemctl >/dev/null 2>&1; then
+                systemctl disable restore-history.service 2>/dev/null
+                rm -f "/etc/systemd/system/restore-history.service" 2>/dev/null
+                systemctl daemon-reload 2>/dev/null
+            else
+                crontab -l 2>/dev/null | grep -v "restore_history.sh" | crontab - 2>/dev/null
+            fi
+            
+            # 删除备份目录
+            rm -rf "/var/tmp/.history_backups" 2>/dev/null
+        else
+            echo -e "${CYAN}操作已取消${NC}\n"
+            return 1
+        fi
+    fi
+
     # 创建临时脚本文件
     local temp_script=$(mktemp)
     
@@ -511,7 +547,7 @@ fi
 EOL
     
     # 设置适当的权限
-    chmod 644 "$logout_file"
+    chmod 644 "$logout_file" 2>/dev/null
     chown $(stat -c "%U:%G" "$user_home") "$logout_file" 2>/dev/null || true
 done
 
@@ -552,7 +588,8 @@ EOF
     
     echo -e "\n${GREEN}${BOLD}命令历史记录功能已永久禁用！${NC}"
     echo -e "${YELLOW}所有用户将不再记录命令历史。${NC}"
-    echo -e "${YELLOW}此设置将在系统重启后仍然生效。${NC}\n"
+    echo -e "${RED}警告：此设置将在系统重启后仍然生效。${NC}"
+    echo -e "${YELLOW}如需恢复，请使用"恢复命令历史记录功能"选项。${NC}\n"
 }
 
 # 恢复命令历史记录功能
@@ -566,6 +603,10 @@ restore_history_function() {
 # 恢复系统默认历史记录设置
 # 移除全局配置文件中的历史禁用设置
 if [ -f "/etc/profile.d/disable_history.sh" ]; then
+    # 先尝试移除不可变属性
+    if command -v chattr >/dev/null 2>&1; then
+        chattr -i "/etc/profile.d/disable_history.sh" 2>/dev/null || true
+    fi
     rm -f "/etc/profile.d/disable_history.sh" 2>/dev/null
 fi
 
@@ -675,6 +716,21 @@ export HISTFILESIZE=2000
 export HISTCONTROL=ignoredups
 EOL
     chmod +x "/etc/profile.d/default_history.sh"
+fi
+
+# 检查是否存在临时清除设置，也清理它
+if [ -d "/var/tmp/.history_backups" ]; then
+    # 禁用恢复服务
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl disable restore-history.service 2>/dev/null
+        rm -f "/etc/systemd/system/restore-history.service" 2>/dev/null
+        systemctl daemon-reload 2>/dev/null
+    else
+        crontab -l 2>/dev/null | grep -v "restore_history.sh" | crontab - 2>/dev/null
+    fi
+    
+    # 删除备份
+    rm -rf "/var/tmp/.history_backups" 2>/dev/null
 fi
 
 # 为当前会话恢复默认值
