@@ -26,7 +26,7 @@ show_logo() {
     echo " ╚██████╗███████╗███████╗██║  ██║██║  ██║       ██║   ██║  ██║██║  ██║╚██████╗███████╗"
     echo "  ╚═════╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝       ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚══════╝"
     echo -e "${NC}"
-    echo -e "${CYAN}${BOLD}                  一键清除Linux所有操作痕迹 v2025.04.27${NC}"
+    echo -e "${CYAN}${BOLD}                 一键清除Linux所有操作痕迹 v2025.04.27${NC}"
     echo -e "${YELLOW}                       安全、高效、无痕迹操作${NC}\n"
 }
 
@@ -263,7 +263,9 @@ restore_ssh_logs() {
         if [ -f "/etc/ssh/sshd_config.original" ]; then
             # 恢复原始备份
             cp /etc/ssh/sshd_config.original /etc/ssh/sshd_config 2>/dev/null
-            echo "已恢复SSH原始配置" >&2
+            # 删除备份文件，确保下次禁用时可以创建新的备份
+            rm -f "/etc/ssh/sshd_config.original" 2>/dev/null
+            echo "已恢复SSH原始配置并删除备份文件" >&2
         else
             # 如果没有原始备份，尝试修改当前配置
             if [ -f "/etc/ssh/sshd_config" ]; then
@@ -298,6 +300,12 @@ disable_history_permanently() {
                 cp "$profile" "${profile}.original" 2>/dev/null
             fi
             
+            # 检查文件是否已经包含禁用历史的设置
+            if [ -f "$profile" ] && grep -q "# 禁用命令历史记录 - 系统安全设置" "$profile"; then
+                # 已经包含禁用设置，跳过此文件
+                continue
+            fi
+            
             # 移除任何现有的HISTSIZE设置
             if [ -f "$profile" ]; then
                 sed -i "/HISTSIZE=/d" "$profile" 2>/dev/null
@@ -319,14 +327,17 @@ disable_history_permanently() {
         done
         
         # 为bash用户设置readonly属性（更强的保护）
-        echo "readonly HISTFILE" >> /etc/profile.d/history.sh
-        echo "readonly HISTSIZE" >> /etc/profile.d/history.sh
-        echo "readonly HISTFILESIZE" >> /etc/profile.d/history.sh
+        # 确保history.sh文件中没有重复配置
+        if [ -f "/etc/profile.d/history.sh" ] && ! grep -q "readonly HISTFILE" "/etc/profile.d/history.sh"; then
+            echo "readonly HISTFILE" >> /etc/profile.d/history.sh
+            echo "readonly HISTSIZE" >> /etc/profile.d/history.sh
+            echo "readonly HISTFILESIZE" >> /etc/profile.d/history.sh
+        fi
         
         # 设置当前会话
         export HISTSIZE=0
         export HISTFILESIZE=0
-        unset HISTFILE
+        unset HISTFILE 2>/dev/null || true
     '
 }
 
@@ -337,6 +348,8 @@ restore_history_function() {
         for profile in /etc/profile /etc/bash.bashrc /etc/profile.d/history.sh; do
             if [ -f "${profile}.original" ]; then
                 cp "${profile}.original" "$profile" 2>/dev/null
+                # 删除备份文件，确保下次禁用时可以创建新的备份
+                rm -f "${profile}.original" 2>/dev/null
             else
                 # 如果没有原始备份，清除禁用历史的设置
                 if [ -f "$profile" ]; then
@@ -353,6 +366,11 @@ restore_history_function() {
             fi
         done
         
+        # 完全删除history.sh文件（如果存在）
+        if [ -f "/etc/profile.d/history.sh" ]; then
+            rm -f "/etc/profile.d/history.sh" 2>/dev/null
+        fi
+        
         # 添加默认历史设置到profile
         if [ -f "/etc/profile" ]; then
             echo "# 恢复默认命令历史记录设置" >> /etc/profile
@@ -361,12 +379,14 @@ restore_history_function() {
             echo "export HISTSIZE HISTFILESIZE" >> /etc/profile
         fi
         
-        # 设置当前会话
-        export HISTSIZE=1000
-        export HISTFILESIZE=2000
+        # 设置当前会话（虽然readonly变量无法在当前会话修改）
+        export HISTSIZE=1000 2>/dev/null || true
+        export HISTFILESIZE=2000 2>/dev/null || true
     '
     
-    echo -e "${YELLOW}请注意：要使命令历史记录功能完全恢复，请注销并重新登录系统。${NC}"
+    echo -e "${RED}${BOLD}重要提示：${NC}${YELLOW}由于历史记录变量可能被设为只读(readonly)，${NC}"
+    echo -e "${YELLOW}命令历史记录功能恢复需要您${BOLD}完全注销并重新登录系统${NC}${YELLOW}才能生效。${NC}"
+    echo -e "${YELLOW}即使当前显示恢复失败，重新登录后也应该能正常工作。${NC}"
 }
 
 # 清理临时文件和缓存
