@@ -768,12 +768,12 @@ EOF
 run_all_operations() {
     echo -e "\n${GREEN}${BOLD}开始全面系统痕迹清理${NC}\n"
     
-    # 定义要执行的操作数组
+    # 定义要执行的操作数组，将清除命令历史放在最后
     local operations=(
-        "clear_command_history"
         "clear_login_logs"
         "clear_system_logs"
         "clean_temp_files"
+        "clear_command_history"
     )
     
     # 遍历执行所有操作
