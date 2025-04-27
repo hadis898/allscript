@@ -243,6 +243,9 @@ EOF
     
     # 清理临时脚本
     rm -f "$temp_script"
+    
+    # 设置退出时自动清除历史钩子
+    setup_logout_cleaner
 }
 
 # 清除登录日志函数
@@ -783,8 +786,72 @@ run_all_operations() {
         fi
     done
     
+    # 再次清除当前shell的命令历史，确保清除所有命令记录
+    history -c 2>/dev/null || true
+    history -w 2>/dev/null || true
+    
+    # 设置bash退出钩子，确保在会话结束时清除历史
+    setup_logout_cleaner
+    
     echo -e "\n${GREEN}${BOLD}全面系统痕迹清理操作已完成${NC}"
     echo -e "\n${CYAN}✓ 所有痕迹已被清除，系统现在处于安全状态！${NC}\n"
+}
+
+# 设置退出时清除历史的钩子
+setup_logout_cleaner() {
+    # 创建临时脚本文件
+    local temp_script=$(mktemp)
+    
+    # 将要执行的命令写入临时脚本文件
+    cat > "$temp_script" << 'EOF'
+#!/bin/bash
+# 为所有用户添加bash_logout设置
+for user_home in /root /home/*; do
+    if [ ! -d "$user_home" ]; then
+        continue
+    fi
+    
+    # 创建或更新.bash_logout文件
+    logout_file="$user_home/.bash_logout"
+    
+    # 如果文件不存在或者不包含历史清理命令，则添加
+    if [ ! -f "$logout_file" ] || ! grep -q "history -c" "$logout_file"; then
+        # 备份原始文件
+        if [ -f "$logout_file" ] && [ ! -f "${logout_file}.original" ]; then
+            cp "$logout_file" "${logout_file}.original" 2>/dev/null
+        fi
+        
+        # 添加历史清理命令
+        echo "# 自动清除历史记录 - 添加于 $(date)" >> "$logout_file"
+        echo "history -c" >> "$logout_file"
+        echo "history -w" >> "$logout_file"
+        echo "rm -f $user_home/.bash_history 2>/dev/null" >> "$logout_file"
+        
+        # 设置适当的权限
+        chmod 644 "$logout_file" 2>/dev/null
+        chown $(stat -c "%U:%G" "$user_home") "$logout_file" 2>/dev/null
+    fi
+done
+
+# 通过trap机制设置当前会话退出时的清理
+trap 'history -c; history -w' EXIT
+EOF
+
+    # 添加执行权限
+    chmod +x "$temp_script"
+    
+    # 执行临时脚本
+    run_silent "设置退出会话时清除历史记录" "$temp_script"
+    
+    # 清理临时脚本
+    rm -f "$temp_script"
+    
+    # 直接在当前会话中设置退出钩子
+    trap 'history -c; history -w' EXIT
+    
+    # 立即清理当前历史
+    history -c 2>/dev/null || true
+    history -w 2>/dev/null || true
 }
 
 # 显示验证命令
@@ -828,6 +895,11 @@ main() {
             local end_time=$(date +%s)
             local duration=$((end_time - start_time))
             echo -e "${CYAN}总执行时间: ${duration} 秒${NC}"
+            
+            # 再次清除当前shell的命令历史，确保清除所有命令记录
+            history -c 2>/dev/null || true
+            history -w 2>/dev/null || true
+            
             exit 0
             ;;
         -h|--help)
@@ -859,6 +931,13 @@ main() {
             9) restore_history_function ;;
             0) 
                 show_exit_message
+                
+                # 如果选择了清理操作，再次清除历史记录以确保完全清除
+                if [[ $choice =~ [1-5] ]]; then
+                    history -c 2>/dev/null || true
+                    history -w 2>/dev/null || true
+                fi
+                
                 exit 0
                 ;;
             *)
