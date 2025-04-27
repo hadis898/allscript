@@ -84,6 +84,7 @@ show_menu() {
     echo -e "${GREEN}========== 系统工具管理脚本 ==========${PLAIN}"
     echo -e "${GREEN}1. BBR-WARP设置${PLAIN}"
     echo -e "${GREEN}2. 开启BBR+root登录+密码设置${PLAIN}"
+    echo -e "${GREEN}3. 清除Linux所有操作痕迹${PLAIN}"
     echo -e "${GREEN}0. 退出脚本${PLAIN}"
     echo -e "${GREEN}=====================================${PLAIN}"
 }
@@ -103,6 +104,9 @@ main() {
                 ;;
             2)
                 download_script "bbr-root.sh"
+                ;;
+            3)
+                download_script "clear_all_logs.sh"
                 ;;
             0)
                 log_info "感谢使用，再见！"
