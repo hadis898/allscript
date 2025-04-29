@@ -151,7 +151,7 @@ show_menu() {
     echo -e "  ${MAGENTA}2.${NC} 清除登录日志和认证记录"
     echo -e "  ${MAGENTA}3.${NC} 清除系统日志与journald记录"
     echo -e "  ${MAGENTA}4.${NC} 清理临时文件和缓存"
-    echo -e "  ${MAGENTA}5.${NC} 一键执行所有清理操作"
+    echo -e "  ${MAGENTA}5.${NC} 一键执行所有清理操作  ${YELLOW}完成后自动断开连接${NC}"
     
     # 禁用选项部分
     echo -e "\n${GREEN}禁用选项:${NC}"
