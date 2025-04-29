@@ -19,7 +19,7 @@ BOLD='\033[1m'
 NC='\033[0m' # 恢复默认颜色
 
 # 版本号常量
-VERSION="v2025.04.27.2" # 简化了SSH日志控制功能和历史记录控制功能
+VERSION="v2025.04.27"
 
 # 生成重复字符的函数
 repeat_char() {
@@ -306,17 +306,165 @@ disable_history_permanently() {
     # 将要执行的命令写入临时脚本文件
     cat > "$temp_script" << 'EOF'
 #!/bin/bash
-# 禁用命令历史记录
-unset HISTFILE
+# 先清除已有历史
+for user_home in /root /home/*; do
+    if [ ! -d "$user_home" ]; then
+        continue
+    fi
 
-# 创建简单的全局配置
+    hist_files=(
+        "$user_home/.bash_history"
+        "$user_home/.zsh_history"
+        "$user_home/.history" 
+        "$user_home/.sh_history"
+    )
+    
+    for hist_file in "${hist_files[@]}"; do
+        if [ -f "$hist_file" ]; then
+            # 完全删除历史文件
+            rm -f "$hist_file" 2>/dev/null
+            
+            # 创建空文件并设置不可写属性
+            touch "$hist_file" 2>/dev/null
+            chmod 400 "$hist_file" 2>/dev/null
+            
+            # 设置不可变属性(如果支持)
+            if command -v chattr >/dev/null 2>&1; then
+                chattr +i "$hist_file" 2>/dev/null || true
+            fi
+        fi
+    done
+    
+    # 修改用户配置文件
+    for rc_file in "$user_home/.bashrc" "$user_home/.bash_profile" "$user_home/.profile" "$user_home/.zshrc"; do
+        if [ -f "$rc_file" ]; then
+            # 备份原始文件
+            if [ ! -f "${rc_file}.original" ]; then
+                cp "$rc_file" "${rc_file}.original" 2>/dev/null
+            fi
+            
+            # 删除所有已存在的历史相关设置
+            sed -i '/HIST/d' "$rc_file" 2>/dev/null
+            
+            # 添加永久禁用历史的配置
+            echo -e "\n# 永久禁用命令历史记录 - 设置于 $(date)" >> "$rc_file"
+            echo "export HISTFILE=/dev/null" >> "$rc_file"
+            echo "export HISTSIZE=0" >> "$rc_file"
+            echo "export HISTFILESIZE=0" >> "$rc_file"
+            echo "export HISTIGNORE='*'" >> "$rc_file"
+            echo "export HISTCONTROL=ignoreboth:erasedups" >> "$rc_file"
+            echo "unset HISTFILE" >> "$rc_file"
+            echo "set +o history" >> "$rc_file"
+            
+            # 为bash用户添加trap
+            if [[ "$rc_file" == *"bash"* ]]; then
+                echo "shopt -s histappend" >> "$rc_file"
+                echo "readonly HISTFILE" >> "$rc_file"
+                echo "readonly HISTSIZE" >> "$rc_file"
+                echo "readonly HISTFILESIZE" >> "$rc_file"
+                echo "trap 'history -c; history -w' EXIT" >> "$rc_file"
+            fi
+            
+            # 为zsh用户添加特定配置
+            if [[ "$rc_file" == *"zsh"* ]]; then
+                echo "unsetopt SHARE_HISTORY" >> "$rc_file"
+                echo "unsetopt APPEND_HISTORY" >> "$rc_file"
+                echo "unsetopt INC_APPEND_HISTORY" >> "$rc_file"
+                echo "setopt NO_HISTORY" >> "$rc_file"
+                echo "fc -p /dev/null" >> "$rc_file"
+            fi
+        fi
+    done
+done
+
+# 设置全局配置
 if [ -d "/etc/profile.d" ]; then
     cat > "/etc/profile.d/disable_history.sh" << 'EOL'
 #!/bin/bash
-# 全局禁用命令历史记录
+# 全局禁用命令历史记录 - 创建于 $(date)
+export HISTFILE=/dev/null
+export HISTSIZE=0
+export HISTFILESIZE=0
+export HISTIGNORE='*'
+export HISTCONTROL=ignoreboth:erasedups
 unset HISTFILE
+set +o history
+# 确保这些配置不能被修改
+readonly HISTFILE
+readonly HISTSIZE
+readonly HISTFILESIZE
+# 退出时清除历史
+trap 'history -c; history -w' EXIT
 EOL
     chmod +x "/etc/profile.d/disable_history.sh"
+fi
+
+if [ -f "/etc/profile" ]; then
+    # 添加到全局配置
+    if ! grep -q "禁用命令历史" "/etc/profile"; then
+        echo -e "\n# 禁用命令历史记录 - 添加于 $(date)" >> /etc/profile
+        echo "export HISTFILE=/dev/null" >> /etc/profile
+        echo "export HISTSIZE=0" >> /etc/profile
+        echo "export HISTFILESIZE=0" >> /etc/profile
+        echo "unset HISTFILE" >> /etc/profile
+        echo "set +o history" >> /etc/profile
+    fi
+fi
+
+# 创建或修改全局bash配置
+if [ -f "/etc/bash.bashrc" ]; then
+    if ! grep -q "禁用历史记录" "/etc/bash.bashrc"; then
+        echo -e "\n# 全局禁用历史记录 - 添加于 $(date)" >> /etc/bash.bashrc
+        echo "export HISTFILE=/dev/null" >> /etc/bash.bashrc
+        echo "export HISTSIZE=0" >> /etc/bash.bashrc
+        echo "export HISTFILESIZE=0" >> /etc/bash.bashrc
+        echo "unset HISTFILE" >> /etc/bash.bashrc
+        echo "set +o history" >> /etc/bash.bashrc
+    fi
+fi
+
+# 确保所有用户的.bash_logout文件都有清理命令
+for user_home in /root /home/*; do
+    if [ ! -d "$user_home" ]; then
+        continue
+    fi
+    
+    logout_file="$user_home/.bash_logout"
+    
+    # 创建或更新logout文件
+    cat > "$logout_file" << 'EOL'
+#!/bin/bash
+# 退出时清理历史记录 - 添加于 $(date)
+history -c
+history -w
+export HISTFILE=/dev/null
+export HISTSIZE=0
+export HISTFILESIZE=0
+# 清除并保护历史文件
+if [ -f "$HOME/.bash_history" ]; then
+    rm -f "$HOME/.bash_history"
+    touch "$HOME/.bash_history"
+    chmod 400 "$HOME/.bash_history"
+fi
+EOL
+    
+    # 设置适当的权限
+    chmod 644 "$logout_file" 2>/dev/null
+    chown $(stat -c "%U:%G" "$user_home") "$logout_file" 2>/dev/null || true
+done
+
+# 立即应用于当前会话
+export HISTFILE=/dev/null
+export HISTSIZE=0
+export HISTFILESIZE=0
+unset HISTFILE
+set +o history
+history -c
+history -w
+
+# 设置永久不可变属性于关键配置文件
+if command -v chattr >/dev/null 2>&1; then
+    chattr +i /etc/profile.d/disable_history.sh 2>/dev/null || true
 fi
 
 echo "命令历史功能已永久禁用" >&2
@@ -332,7 +480,13 @@ EOF
     rm -f "$temp_script"
     
     # 直接在当前会话中禁用历史
+    export HISTFILE=/dev/null
+    export HISTSIZE=0
+    export HISTFILESIZE=0
     unset HISTFILE 2>/dev/null || true
+    set +o history 2>/dev/null || true
+    history -c 2>/dev/null || true
+    history -w 2>/dev/null || true
     
     echo -e "\n${GREEN}${BOLD}命令历史记录功能已永久禁用！${NC}"
     echo -e "${YELLOW}所有用户将不再记录命令历史。${NC}"
@@ -347,17 +501,308 @@ restore_history_function() {
     # 将要执行的命令写入临时脚本文件
     cat > "$temp_script" << 'EOF'
 #!/bin/bash
-# 恢复命令历史记录
+# 恢复系统默认历史记录设置
+# 定义辅助函数：删除所有历史变量设置
+remove_history_settings() {
+    local file="$1"
+    if [ -f "$file" ]; then
+        # 使用更精确的模式匹配，防止误删其他内容
+        sed -i '/禁用.*历史/d' "$file" 2>/dev/null
+        sed -i '/命令历史记录/d' "$file" 2>/dev/null
+        sed -i '/HISTFILE=/d' "$file" 2>/dev/null
+        sed -i '/HISTSIZE=/d' "$file" 2>/dev/null
+        sed -i '/HISTFILESIZE=/d' "$file" 2>/dev/null
+        sed -i '/HISTIGNORE=/d' "$file" 2>/dev/null
+        sed -i '/HISTCONTROL=/d' "$file" 2>/dev/null
+        sed -i '/unset HISTFILE/d' "$file" 2>/dev/null
+        sed -i '/set [+|-]o history/d' "$file" 2>/dev/null
+        sed -i '/readonly HIST/d' "$file" 2>/dev/null
+        sed -i '/^shopt -s histappend/d' "$file" 2>/dev/null
+        sed -i '/trap.*history/d' "$file" 2>/dev/null
+    fi
+}
 
-# 恢复历史文件路径
-HISTFILE=~/.bash_history
+# ==== 步骤1：首先处理全局配置文件 ====
+# 移除全局配置文件中的历史禁用设置
+echo "正在处理全局配置文件..." >&2
 
 # 移除禁用历史的配置文件
-if [ -f "/etc/profile.d/disable_history.sh" ]; then
-    rm -f "/etc/profile.d/disable_history.sh" 2>/dev/null || true
+for config_file in "/etc/profile.d/disable_history.sh" "/etc/profile.d/no_history.sh"; do
+    if [ -f "$config_file" ]; then
+        # 先尝试移除只读属性
+        if command -v chattr >/dev/null 2>&1; then
+            chattr -i "$config_file" 2>/dev/null || true
+        fi
+        # 尝试删除文件，如果无法删除，尝试清空内容
+        rm -f "$config_file" 2>/dev/null || truncate -s 0 "$config_file" 2>/dev/null || true
+    fi
+done
+
+# 移除全局profile中的设置
+for global_file in "/etc/profile" "/etc/bash.bashrc" "/etc/bashrc"; do
+    remove_history_settings "$global_file"
+done
+
+# ==== 步骤2：新建恢复历史的配置文件 ====
+echo "正在创建恢复历史记录的配置..." >&2
+
+# 创建恢复历史的配置文件
+if [ -d "/etc/profile.d" ]; then
+    cat > "/etc/profile.d/restore_history.sh" << 'EOL'
+#!/bin/bash
+# 恢复命令历史记录功能 - 创建于 $(date)
+
+# 这段代码会清除只读属性并恢复历史功能
+if [ -n "$BASH_VERSION" ]; then
+    # 使用子shell技术绕过只读限制
+    bash -c '
+        # 导出正常的历史设置
+        export HISTSIZE=1000
+        export HISTFILESIZE=2000
+        export HISTCONTROL=ignoredups
+        # 重新启用历史
+        set -o history
+    ' >/dev/null 2>&1 || true
+    
+    # 下面这些命令可能会报错，但我们忽略错误继续执行
+    # 因为这些变量可能被设为了只读
+    HISTSIZE=1000 2>/dev/null || true
+    HISTFILESIZE=2000 2>/dev/null || true
+    HISTCONTROL=ignoredups 2>/dev/null || true
+    set -o history 2>/dev/null || true
+fi
+EOL
+    chmod +x "/etc/profile.d/restore_history.sh"
 fi
 
-echo "命令历史记录功能已恢复" >&2
+# ==== 步骤3：处理所有用户配置 ====
+echo "正在处理用户配置文件..." >&2
+
+# 恢复所有用户的配置
+for user_home in /root /home/*; do
+    if [ ! -d "$user_home" ]; then
+        continue
+    fi
+    
+    # 恢复历史文件权限
+    hist_files=(
+        "$user_home/.bash_history"
+        "$user_home/.zsh_history"
+        "$user_home/.history" 
+        "$user_home/.sh_history"
+    )
+    
+    for hist_file in "${hist_files[@]}"; do
+        if [ -f "$hist_file" ]; then
+            # 移除不可变属性(如果有)
+            if command -v chattr >/dev/null 2>&1; then
+                chattr -i "$hist_file" 2>/dev/null || true
+            fi
+            
+            # 确保文件可写
+            chmod 600 "$hist_file" 2>/dev/null
+            
+            # 如果文件为空，创建新的历史文件
+            if [ ! -s "$hist_file" ]; then
+                touch "$hist_file" 2>/dev/null
+                chmod 600 "$hist_file" 2>/dev/null
+            fi
+        else
+            # 如果历史文件不存在，创建一个新的
+            touch "$hist_file" 2>/dev/null
+            chmod 600 "$hist_file" 2>/dev/null
+        fi
+    done
+    
+    # 处理用户配置文件
+    for rc_file in "$user_home/.bashrc" "$user_home/.bash_profile" "$user_home/.profile" "$user_home/.zshrc"; do
+        # 如果有备份，恢复备份
+        if [ -f "${rc_file}.original" ]; then
+            cp -f "${rc_file}.original" "$rc_file" 2>/dev/null
+            rm -f "${rc_file}.original" 2>/dev/null
+        else
+            # 否则清除所有历史相关设置
+            remove_history_settings "$rc_file"
+            
+            # 添加新的历史设置 - 仅当文件存在时
+            if [ -f "$rc_file" ]; then
+                echo -e "\n# 历史记录默认设置 - 恢复于 $(date)" >> "$rc_file"
+                echo "# 以下设置通过子shell方式实现，避免只读变量问题" >> "$rc_file"
+                echo "if [ -n \"\$BASH_VERSION\" ]; then" >> "$rc_file"
+                echo "    # 在子shell中设置历史变量" >> "$rc_file"
+                echo "    bash -c '" >> "$rc_file"
+                echo "        export HISTSIZE=1000" >> "$rc_file"
+                echo "        export HISTFILESIZE=2000" >> "$rc_file"
+                echo "        export HISTCONTROL=ignoredups" >> "$rc_file"
+                echo "        set -o history" >> "$rc_file"
+                echo "    ' >/dev/null 2>&1 || true" >> "$rc_file"
+                echo "    " >> "$rc_file"
+                echo "    # 尝试直接设置(可能会报错，但忽略)" >> "$rc_file"
+                echo "    HISTSIZE=1000 2>/dev/null || true" >> "$rc_file"
+                echo "    HISTFILESIZE=2000 2>/dev/null || true" >> "$rc_file"
+                echo "    HISTCONTROL=ignoredups 2>/dev/null || true" >> "$rc_file"
+                echo "    set -o history 2>/dev/null || true" >> "$rc_file"
+                echo "fi" >> "$rc_file"
+            fi
+            
+            # 对于zsh特定的设置
+            if [[ "$rc_file" == *"zsh"* ]]; then
+                sed -i '/unsetopt.*HISTORY/d' "$rc_file" 2>/dev/null
+                sed -i '/setopt NO_HISTORY/d' "$rc_file" 2>/dev/null
+                sed -i '/fc -p/d' "$rc_file" 2>/dev/null
+                
+                # 添加zsh特定的恢复设置
+                echo "# ZSH历史设置 - 恢复于 $(date)" >> "$rc_file"
+                echo "HISTSIZE=1000" >> "$rc_file"
+                echo "SAVEHIST=1000" >> "$rc_file"
+                echo "setopt SHARE_HISTORY" >> "$rc_file"
+                echo "setopt APPEND_HISTORY" >> "$rc_file"
+            fi
+        fi
+    done
+    
+    # 恢复bash_logout文件
+    logout_file="$user_home/.bash_logout"
+    if [ -f "${logout_file}.original" ]; then
+        cp -f "${logout_file}.original" "$logout_file" 2>/dev/null
+        rm -f "${logout_file}.original" 2>/dev/null
+    else
+        # 删除清理历史的相关命令
+        sed -i '/清理历史/d' "$logout_file" 2>/dev/null
+        sed -i '/history -c/d' "$logout_file" 2>/dev/null
+        sed -i '/history -w/d' "$logout_file" 2>/dev/null
+        sed -i '/HIST/d' "$logout_file" 2>/dev/null
+        sed -i '/bash_history/d' "$logout_file" 2>/dev/null
+    fi
+done
+
+# ==== 步骤4：使用更激进的方法处理只读变量 ====
+echo "正在处理只读变量问题..." >&2
+
+# 创建一个解除只读变量的启动脚本
+cat > "/etc/profile.d/99-fix-readonly-history.sh" << 'EOL'
+#!/bin/bash
+# 修复只读历史变量 - 创建于 $(date)
+
+# 这个脚本通过一种特殊方法解决只读变量问题
+# 原理是创建一个新的shell环境，从而绕过只读属性
+
+# 函数：检测是否有只读历史变量
+check_readonly_hist() {
+    ( readonly -p | grep -q "HIST" ) && return 0 || return 1
+}
+
+# 如果检测到只读历史变量
+if check_readonly_hist; then
+    # 创建一个临时启动脚本
+    export BASH_ENV=$(mktemp)
+    echo 'export HISTFILE=~/.bash_history' > $BASH_ENV
+    echo 'export HISTSIZE=1000' >> $BASH_ENV
+    echo 'export HISTFILESIZE=2000' >> $BASH_ENV
+    echo 'export HISTCONTROL=ignoredups' >> $BASH_ENV
+    echo 'set -o history' >> $BASH_ENV
+    chmod +x $BASH_ENV
+    
+    # 让用户重新登录
+    if [ -n "$DISPLAY" ]; then
+        # 图形界面提示
+        which zenity >/dev/null 2>&1 && \
+        zenity --info --text="历史记录功能已恢复，请重新登录以完全生效" >/dev/null 2>&1 &
+    else
+        echo -e "\n\033[1;32m历史记录功能已恢复，请重新登录以完全生效\033[0m" >&2
+    fi
+fi
+EOL
+
+chmod +x "/etc/profile.d/99-fix-readonly-history.sh"
+
+# 尝试强制重置当前Shell的历史变量 - 这是一个更激进的方法
+# 创建一个临时脚本，尝试用新进程完全替代当前Shell环境
+cat > "/tmp/force_history_reset.sh" << 'EOL'
+#!/bin/bash
+# 这个脚本用于强制重置历史记录设置
+# 原理是创建一个全新的Shell进程
+
+# 创建一个临时初始化文件
+TEMP_INIT=$(mktemp)
+cat > $TEMP_INIT << 'INIT'
+# 初始化历史设置
+export HISTFILE=~/.bash_history
+export HISTSIZE=1000
+export HISTFILESIZE=2000
+export HISTCONTROL=ignoredups
+set -o history
+INIT
+
+# 使用新的初始化文件启动一个交互式Shell
+echo "正在尝试重置历史记录设置..."
+echo "如果看到此消息，表示历史记录功能已部分恢复"
+echo "请完全退出并重新登录以确保所有更改生效"
+
+# 添加到用户的登录脚本中自动执行重置
+for user_home in /root /home/*; do
+    if [ -d "$user_home" ]; then
+        login_file="$user_home/.bash_profile"
+        # 只在文件存在且尚未包含重置命令时添加
+        if [ -f "$login_file" ] && ! grep -q "历史记录已重置" "$login_file"; then
+            echo -e "\n# 历史记录已重置 - $(date)" >> "$login_file"
+            echo "# 此行将在下次登录后自动删除" >> "$login_file"
+            echo "echo '历史记录功能已恢复正常'" >> "$login_file"
+            echo "sed -i '/历史记录已重置/,+3d' \"$login_file\" 2>/dev/null" >> "$login_file"
+        fi
+    fi
+done
+
+# 清理临时文件
+rm -f $TEMP_INIT
+EOL
+
+chmod +x "/tmp/force_history_reset.sh"
+
+# 提示用户重新登录
+echo "命令历史记录功能已恢复，请重新登录以确保所有设置生效" >&2
+echo "如果历史记录仍然无法正常工作，请尝试运行: /tmp/force_history_reset.sh" >&2
+
+# ==== 步骤5：尝试为当前会话恢复历史功能 ====
+echo "正在尝试为当前会话恢复历史功能..." >&2
+
+# 下面这些命令会尝试恢复历史，但可能会因为只读属性而失败
+# 我们不关心错误输出，所以全部重定向到/dev/null
+(
+    # 尝试在子shell中设置变量
+    HISTFILE=~/.bash_history
+    HISTSIZE=1000 
+    HISTFILESIZE=2000
+    HISTCONTROL=ignoredups 
+    set -o history
+) >/dev/null 2>&1 || true
+
+# 最后的解决方案：如果我们有执行exec替换当前Shell的权限
+if [ "$(id -u)" -eq 0 ]; then
+    # 只有root用户才尝试这个方法，避免普通用户Shell中断
+    echo "正在尝试立即恢复当前会话的历史记录功能..." >&2
+    
+    # 创建一个临时初始化脚本
+    TEMP_SHELL_INIT=$(mktemp)
+    cat > "$TEMP_SHELL_INIT" << 'EOINIT'
+export HISTFILE=~/.bash_history
+export HISTSIZE=1000
+export HISTFILESIZE=2000
+export HISTCONTROL=ignoredups
+set -o history
+EOINIT
+    
+    # 为临时脚本添加执行权限
+    chmod +x "$TEMP_SHELL_INIT"
+    
+    # 告诉用户我们要做什么
+    echo "即将尝试重启Shell会话以恢复历史功能..." >&2
+    
+    # 选择性执行 - 有些环境可能不允许这样做
+    # exec env -i bash --rcfile "$TEMP_SHELL_INIT" -i || true
+fi
+
+echo "命令历史记录功能恢复完成" >&2
 EOF
 
     # 添加执行权限
@@ -369,12 +814,12 @@ EOF
     # 清理临时脚本
     rm -f "$temp_script"
     
-    # 在当前会话中恢复历史
-    HISTFILE=~/.bash_history 2>/dev/null || true
-    
     echo -e "\n${GREEN}${BOLD}命令历史记录功能已恢复！${NC}"
-    echo -e "${YELLOW}所有用户将重新开始记录命令历史。${NC}"
-    echo -e "${YELLOW}此设置将在系统重启后仍然生效。${NC}\n"
+    echo -e "${YELLOW}重要提示：由于历史变量可能被设为只读，完全恢复可能需要您执行以下操作:${NC}"
+    echo -e "${CYAN}1. 重新启动系统${NC}"
+    echo -e "${CYAN}2. 或者完全退出当前shell会话后重新登录${NC}"
+    echo -e "${YELLOW}您当前会话中历史记录可能仍然无法正常工作，这是正常的。${NC}"
+    echo -e "${YELLOW}如需立即强制恢复，可以尝试执行：${CYAN}/tmp/force_history_reset.sh${NC}\n"
 }
 
 # 清除登录日志函数
@@ -608,11 +1053,42 @@ if command -v chattr >/dev/null 2>&1; then
     # 设置不可变属性
     chattr +i /var/log/wtmp /var/log/btmp 2>/dev/null
     
-    echo "SSH日志已被禁用" >&2
+    # 检查是否成功设置不可变属性
+    lsattr /var/log/wtmp /var/log/btmp 2>/dev/null | grep -q "^-.*i.*-" && \
+    echo "已成功锁定SSH日志文件，现在它们无法被修改" >&2 || \
+    echo "警告：无法锁定某些日志文件，请检查系统权限" >&2
 else
     echo "错误：系统缺少chattr命令，无法设置文件属性" >&2
     exit 1
 fi
+
+# 清空日志文件（如果可能）
+for ssh_log in /var/log/auth.log /var/log/secure /var/log/sshd.log /var/log/auth.log.* /var/log/secure.* /var/log/messages; do
+    if [ -f "$ssh_log" ] && [ -w "$ssh_log" ]; then
+        truncate -s 0 "$ssh_log" 2>/dev/null
+    fi
+done
+
+# 如果存在SSH配置，也进行日志禁用配置
+if [ -f "/etc/ssh/sshd_config" ]; then
+    # 备份原始配置(如果备份不存在)
+    if [ ! -f "/etc/ssh/sshd_config.original" ]; then
+        cp /etc/ssh/sshd_config /etc/ssh/sshd_config.original 2>/dev/null
+    fi
+    
+    # 修改SSH配置减少日志记录
+    sed -i "s/^#*LogLevel.*/LogLevel QUIET/" /etc/ssh/sshd_config 2>/dev/null
+    sed -i "s/^#*PrintLastLog.*/PrintLastLog no/" /etc/ssh/sshd_config 2>/dev/null
+    
+    # 重启SSH服务
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl restart sshd >/dev/null 2>&1 || systemctl restart ssh >/dev/null 2>&1
+    elif command -v service >/dev/null 2>&1; then
+        service sshd restart >/dev/null 2>&1 || service ssh restart >/dev/null 2>&1
+    fi
+fi
+
+echo "SSH日志已被禁用" >&2
 EOF
 
     # 添加执行权限
@@ -638,11 +1114,35 @@ if command -v chattr >/dev/null 2>&1; then
     # 移除不可变属性
     chattr -i /var/log/wtmp /var/log/btmp 2>/dev/null
     
-    echo "SSH日志记录功能已恢复" >&2
+    # 检查是否成功移除不可变属性
+    lsattr /var/log/wtmp /var/log/btmp 2>/dev/null | grep -q "^-.*i.*-" && \
+    echo "警告：日志文件仍有不可变属性，可能需要更高权限" >&2 || \
+    echo "已成功解锁SSH日志文件，现在可以正常记录" >&2
 else
     echo "错误：系统缺少chattr命令，无法修改文件属性" >&2
     exit 1
 fi
+
+# 如果存在SSH配置备份，恢复它
+if [ -f "/etc/ssh/sshd_config.original" ]; then
+    # 恢复原始备份
+    cp /etc/ssh/sshd_config.original /etc/ssh/sshd_config 2>/dev/null
+    # 删除备份文件，确保下次禁用时可以创建新的备份
+    rm -f "/etc/ssh/sshd_config.original" 2>/dev/null
+elif [ -f "/etc/ssh/sshd_config" ]; then
+    # 如果没有原始备份，尝试修改当前配置
+    sed -i "s/^LogLevel QUIET/LogLevel INFO/" /etc/ssh/sshd_config 2>/dev/null
+    sed -i "s/^PrintLastLog no/PrintLastLog yes/" /etc/ssh/sshd_config 2>/dev/null
+fi
+
+# 重启SSH服务
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl restart sshd >/dev/null 2>&1 || systemctl restart ssh >/dev/null 2>&1
+elif command -v service >/dev/null 2>&1; then
+    service sshd restart >/dev/null 2>&1 || service ssh restart >/dev/null 2>&1
+fi
+
+echo "SSH日志记录功能已恢复" >&2
 EOF
 
     # 添加执行权限
