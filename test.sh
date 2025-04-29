@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================
-# 一键清除linux所有操作痕迹 v2025.04.25
+# 一键清除linux所有操作痕迹 v2025.04.29
 # 使用方法：sudo ./clear_all_logs_silent.sh
 # ==============================================
 # 颜色定义（精简）
@@ -57,12 +57,31 @@ run_silent "清除命令历史" bash -c '
     history -c
     history -w
 '
-# 2. 清除登录日志
+
+# 2. 清除登录日志 - 改进版
 run_silent "清除登录记录" bash -c '
-    echo > /var/log/wtmp
-    echo > /var/log/btmp
-    echo > /var/log/lastlog 2>/dev/null
+    # 处理二进制日志文件 - 使用truncate而不是echo
+    # wtmp - 记录所有登录和注销
+    [ -f /var/log/wtmp ] && truncate -s 0 /var/log/wtmp
+    
+    # btmp - 记录失败的登录尝试
+    [ -f /var/log/btmp ] && truncate -s 0 /var/log/btmp
+    
+    # lastlog - 包含每个用户最后登录的信息
+    [ -f /var/log/lastlog ] && truncate -s 0 /var/log/lastlog
+    
+    # utmp - 记录当前登录情况（注意位置可能是/var/run/utmp或/run/utmp）
+    [ -f /var/run/utmp ] && truncate -s 0 /var/run/utmp
+    [ -f /run/utmp ] && truncate -s 0 /run/utmp
+    
+    # 尝试清除备份的日志文件
+    find /var/log -name "wtmp.*" -exec truncate -s 0 {} \; 2>/dev/null
+    find /var/log -name "btmp.*" -exec truncate -s 0 {} \; 2>/dev/null
+    
+    # 重启相关服务以确保更改生效
+    systemctl try-restart systemd-logind.service 2>/dev/null
 '
+
 # 3. 清除系统日志
 run_silent "清除系统日志" bash -c '
     journalctl --flush --rotate >/dev/null 2>&1
@@ -72,13 +91,21 @@ run_silent "清除系统日志" bash -c '
     # 清除更多系统日志文件
     for log_file in /var/log/auth.log /var/log/syslog /var/log/messages /var/log/secure /var/log/dmesg; do
         if [ -f "$log_file" ]; then
-            echo > "$log_file"
+            truncate -s 0 "$log_file"
         fi
     done
     
     # 清除所有.log文件（更彻底，但可能会影响某些应用）
-    find /var/log -type f -name "*.log" -exec sh -c "echo > {}" \; 2>/dev/null
+    find /var/log -type f -name "*.log" -exec truncate -s 0 {} \; 2>/dev/null
+    
+    # 清除audit日志（如果存在）
+    [ -f /var/log/audit/audit.log ] && truncate -s 0 /var/log/audit/audit.log
+    find /var/log/audit -name "audit.log.*" -exec truncate -s 0 {} \; 2>/dev/null
+    
+    # 重启auditd服务（如果存在）
+    systemctl try-restart auditd.service 2>/dev/null
 '
+
 # 4. 可选：禁用 SSH 日志
 read -p "$(echo -e "${YELLOW}❓ 是否禁用 SSH 日志记录？(y/N): ${NC}")" choice
 if [[ "$choice" =~ [yY] ]]; then
@@ -113,12 +140,48 @@ run_silent "禁用历史记录功能" bash -c '
     export HISTFILESIZE=0
 '
 
+# 6. 清除其他可能的登录记录（acct/psacct，如果安装）
+run_silent "清除进程账户记录" bash -c '
+    # 如果安装了acct/psacct，清理它的记录
+    if command -v accton &>/dev/null; then
+        accton off 2>/dev/null
+        [ -f /var/account/pacct ] && truncate -s 0 /var/account/pacct
+        find /var/account -name "pacct*" -exec truncate -s 0 {} \; 2>/dev/null
+    fi
+'
+
+# 7. 完全清除wtmp/btmp历史记录的另一种方法
+run_silent "深度清除登录记录" bash -c '
+    # 备份原始文件权限
+    if [ -f /var/log/wtmp ]; then
+        wtmp_perm=$(stat -c "%a" /var/log/wtmp)
+        rm -f /var/log/wtmp
+        touch /var/log/wtmp
+        chmod $wtmp_perm /var/log/wtmp 2>/dev/null
+    fi
+    
+    if [ -f /var/log/btmp ]; then
+        btmp_perm=$(stat -c "%a" /var/log/btmp)
+        rm -f /var/log/btmp
+        touch /var/log/btmp
+        chmod $btmp_perm /var/log/btmp 2>/dev/null
+    fi
+    
+    if [ -f /var/log/lastlog ]; then
+        lastlog_perm=$(stat -c "%a" /var/log/lastlog)
+        rm -f /var/log/lastlog
+        touch /var/log/lastlog
+        chmod $lastlog_perm /var/log/lastlog 2>/dev/null
+    fi
+'
+
 # 完成提示
 echo -e "\n${GREEN}🎉 所有痕迹已静默清理完毕！${NC}"
 echo -e "${YELLOW}验证命令：${NC}"
-echo -e "  last root       # 检查登录记录"
+echo -e "  last            # 检查登录记录"
+echo -e "  lastb           # 检查失败的登录尝试"
+echo -e "  lastlog         # 检查用户最后登录信息"
 echo -e "  history         # 检查命令历史"
 echo -e "  journalctl -u sshd _UID=0  # 检查系统日志"
-
 # 提示重新登录以完全清除历史
-echo -e "\n${YELLOW}注意：为确保命令历史完全清除，建议在运行此脚本后注销并重新登录。${NC}"
+echo -e "\n${YELLOW}注意：为确保命令历史和登录痕迹完全清除，建议在运行此脚本后重启系统。${NC}"

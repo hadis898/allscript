@@ -147,7 +147,7 @@ show_menu() {
     
     # 清理选项部分
     echo -e "${GREEN}清理选项:${NC}"
-    echo -e "  ${MAGENTA}1.${NC} 清除命令历史及bash记录（会禁用命令历史功能，如需恢复按 9）"
+    echo -e "  ${MAGENTA}1.${NC} 清除命令历史及bash记录"
     echo -e "  ${MAGENTA}2.${NC} 清除登录日志和认证记录"
     echo -e "  ${MAGENTA}3.${NC} 清除系统日志与journald记录"
     echo -e "  ${MAGENTA}4.${NC} 清理临时文件和缓存"
@@ -205,8 +205,11 @@ for user_home in /root /home/*; do
     
     for hist_file in "${hist_files[@]}"; do
         if [ -f "$hist_file" ]; then
-            # 备份历史文件(可选)
-            # cp -f "$hist_file" "/tmp/.history_backups/${user}_$(basename $hist_file)_${timestamp}" 2>/dev/null
+            # 如果有用户正在登录，尝试清除其活动shell的历史
+            for pid in $(pgrep -u "$user" bash); do
+                # 向每个bash进程发送history -c命令
+                su - "$user" -c "kill -USR1 $pid && echo \"history -c && history -w\" >> /proc/$pid/fd/0" 2>/dev/null
+            done
             
             # 检查文件权限并优化清理方式
             if [ -w "$hist_file" ]; then
@@ -218,19 +221,25 @@ for user_home in /root /home/*; do
                     shred -fuz "$hist_file" 2>/dev/null || true
                 fi
                 
-                # 方法2: 使用多种清空文件方式
+                # 方法2: 先将文件设置为追加模式
+                chattr +a "$hist_file" 2>/dev/null || true
+                
+                # 方法3: 使用多种清空文件方式
                 : > "$hist_file" 2>/dev/null || \
                 cat /dev/null > "$hist_file" 2>/dev/null || \
                 truncate -s 0 "$hist_file" 2>/dev/null || \
                 echo -n "" > "$hist_file" 2>/dev/null
                 
-                # 方法3: 如果文件仍有内容，创建新的空文件替换
+                # 方法4: 恢复文件属性
+                chattr -a "$hist_file" 2>/dev/null || true
+                
+                # 方法5: 如果文件仍有内容，创建新的空文件替换
                 if [ -s "$hist_file" ]; then
                     rm -f "$hist_file" 2>/dev/null
                     touch "$hist_file" 2>/dev/null
                 fi
                 
-                # 方法4: 设置不可写权限防止新记录写入
+                # 方法6: 设置不可写权限防止新记录写入
                 chmod 400 "$hist_file" 2>/dev/null
             else
                 # 文件不可写，尝试修改权限后清空
