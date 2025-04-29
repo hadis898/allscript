@@ -239,13 +239,13 @@ for user_home in /root /home/*; do
                     touch "$hist_file" 2>/dev/null
                 fi
                 
-                # 方法6: 设置不可写权限防止新记录写入
-                chmod 400 "$hist_file" 2>/dev/null
+                # 设置合适的权限，确保文件可写
+                chmod 600 "$hist_file" 2>/dev/null
             else
                 # 文件不可写，尝试修改权限后清空
                 chmod u+w "$hist_file" 2>/dev/null
                 : > "$hist_file" 2>/dev/null
-                chmod 400 "$hist_file" 2>/dev/null
+                chmod 600 "$hist_file" 2>/dev/null
             fi
             
             # 检查是否成功清空
@@ -253,53 +253,19 @@ for user_home in /root /home/*; do
                 # 最后手段: 使用文件系统级删除重建
                 rm -f "$hist_file" 2>/dev/null
                 touch "$hist_file" 2>/dev/null
-                chmod 400 "$hist_file" 2>/dev/null
+                chmod 600 "$hist_file" 2>/dev/null
             fi
         fi
     done
     
-    # 设置HISTSIZE和HISTFILESIZE为0
-    for profile_file in "$user_home/.bashrc" "$user_home/.bash_profile" "$user_home/.profile"; do
-        if [ -f "$profile_file" ] && [ -w "$profile_file" ]; then
-            # 仅当文件中不存在相关设置时添加
-            if ! grep -q "HISTSIZE=0" "$profile_file"; then
-                echo -e "\n# 临时禁用历史记录 - $(date)" >> "$profile_file"
-                echo "export HISTSIZE=0" >> "$profile_file"
-                echo "export HISTFILESIZE=0" >> "$profile_file"
-                echo "export HISTCONTROL=ignoreboth:erasedups" >> "$profile_file"
-            fi
-        fi
-    done
+    # 注意：不再修改用户配置文件来禁用历史记录
 done
 
-# 设置全局历史文件大小限制
-if [ -f "/etc/profile" ] && [ -w "/etc/profile" ]; then
-    if ! grep -q "# 全局历史记录限制" "/etc/profile"; then
-        echo -e "\n# 全局历史记录限制 - $(date)" >> /etc/profile
-        echo "export HISTSIZE=0" >> /etc/profile
-        echo "export HISTFILESIZE=0" >> /etc/profile
-        echo "export HISTCONTROL=ignoreboth:erasedups" >> /etc/profile
-    fi
-fi
-
-if [ -d "/etc/profile.d" ] && [ -w "/etc/profile.d" ]; then
-    echo '#!/bin/bash
-# 全局禁用历史记录 - 创建于 '$(date)'
-export HISTSIZE=0
-export HISTFILESIZE=0
-export HISTCONTROL=ignoreboth:erasedups
-' > /etc/profile.d/no_history.sh
-    chmod +x /etc/profile.d/no_history.sh
-fi
+# 注意：不再设置全局历史文件大小限制
 
 # 清除当前shell的历史
 history -c 2>/dev/null || true
 history -w 2>/dev/null || true
-
-# 设置当前会话变量
-export HISTSIZE=0
-export HISTFILESIZE=0
-export HISTCONTROL=ignoreboth:erasedups
 
 # 确保系统没有保留任何历史相关文件
 find /var/spool/ /var/log/ /var/tmp/ /tmp/ -name "*history*" -type f 2>/dev/null | while read hist_file; do
@@ -310,37 +276,7 @@ find /var/spool/ /var/log/ /var/tmp/ /tmp/ -name "*history*" -type f 2>/dev/null
     fi
 done
 
-# 创建或更新所有用户的.bash_logout
-for user_home in /root /home/*; do
-    if [ ! -d "$user_home" ]; then
-        continue
-    fi
-    
-    # 创建或更新.bash_logout文件
-    logout_file="$user_home/.bash_logout"
-    
-    # 如果文件不存在或者不包含历史清理命令，则添加
-    if [ ! -f "$logout_file" ] || ! grep -q "# 退出时清理历史" "$logout_file"; then
-        # 备份原始文件
-        if [ -f "$logout_file" ] && [ ! -f "${logout_file}.original" ]; then
-            cp "$logout_file" "${logout_file}.original" 2>/dev/null
-        fi
-        
-        # 添加历史清理命令
-        echo "# 退出时清理历史 - 添加于 $(date)" > "$logout_file"
-        echo "history -c" >> "$logout_file"
-        echo "history -w" >> "$logout_file"
-        echo "rm -f $user_home/.bash_history 2>/dev/null" >> "$logout_file"
-        echo "touch $user_home/.bash_history 2>/dev/null" >> "$logout_file"
-        echo "chmod 400 $user_home/.bash_history 2>/dev/null" >> "$logout_file"
-        
-        # 设置适当的权限
-        chmod 644 "$logout_file" 2>/dev/null
-        if [ -d "$user_home" ]; then
-            chown $(stat -c "%U:%G" "$user_home") "$logout_file" 2>/dev/null || true
-        fi
-    fi
-done
+# 注意：不再创建或更新.bash_logout文件
 
 # 清除共享内存中的历史记录
 ipcs -m | grep -v "0x" | awk '{print $1}' | xargs -n 1 ipcrm -m 2>/dev/null || true
@@ -359,11 +295,7 @@ EOF
     history -c 2>/dev/null || true
     history -w 2>/dev/null || true
     
-    # 直接在当前shell设置变量
-    export HISTSIZE=0
-    export HISTFILESIZE=0
-    export HISTCONTROL=ignoreboth:erasedups
-    
+    # 不再设置HISTSIZE=0，保留历史记录功能
 }
 
 # 永久禁用命令历史记录功能
@@ -517,7 +449,7 @@ fi
 EOL
     
     # 设置适当的权限
-    chmod 644 "$logout_file"
+    chmod 644 "$logout_file" 2>/dev/null
     chown $(stat -c "%U:%G" "$user_home") "$logout_file" 2>/dev/null || true
 done
 
@@ -1124,68 +1056,11 @@ run_all_operations() {
     history -c 2>/dev/null || true
     history -w 2>/dev/null || true
     
-    # 设置会话结束时清理历史钩子
-    setup_logout_cleaner
+    # 这里不再调用setup_logout_cleaner函数，避免禁用历史命令功能
     
     echo -e "\n${GREEN}${BOLD}全面系统痕迹清理操作已完成${NC}"
     echo -e "\n${CYAN}✓ 所有痕迹已被清除！${NC}"
-    echo -e "\n${CYAN}✓ 命令历史功能已禁用，如需恢复按${YELLOW} 9 ${NC}\n"
-}
-
-# 设置退出时清除历史的钩子
-setup_logout_cleaner() {
-    # 创建临时脚本文件
-    local temp_script=$(mktemp)
-    
-    # 将要执行的命令写入临时脚本文件
-    cat > "$temp_script" << 'EOF'
-#!/bin/bash
-# 为当前用户添加bash_logout设置以清除会话历史
-for user_home in $(eval echo ~${SUDO_USER:-${USER}}); do
-    if [ ! -d "$user_home" ]; then
-        continue
-    fi
-    
-    # 创建或更新.bash_logout文件
-    logout_file="$user_home/.bash_logout"
-    
-    # 如果文件不存在或者不包含历史清理命令，则添加
-    if [ ! -f "$logout_file" ] || ! grep -q "# 退出时清理当前会话历史" "$logout_file"; then
-        # 备份原始文件
-        if [ -f "$logout_file" ] && [ ! -f "${logout_file}.original" ]; then
-            cp "$logout_file" "${logout_file}.original" 2>/dev/null
-        fi
-        
-        # 添加历史清理命令
-        echo "# 退出时清理当前会话历史 - 添加于 $(date)" >> "$logout_file"
-        echo "history -c" >> "$logout_file"
-        echo "history -w" >> "$logout_file"
-        
-        # 设置适当的权限
-        chmod 644 "$logout_file" 2>/dev/null
-        chown $(stat -c "%U:%G" "$user_home") "$logout_file" 2>/dev/null
-    fi
-done
-
-# 通过trap机制设置当前会话退出时的清理
-trap 'history -c; history -w' EXIT
-EOF
-
-    # 添加执行权限
-    chmod +x "$temp_script"
-    
-    # 执行临时脚本
-    run_silent "设置退出会话时清除历史记录" "$temp_script"
-    
-    # 清理临时脚本
-    rm -f "$temp_script"
-    
-    # 直接在当前会话中设置退出钩子
-    trap 'history -c; history -w' EXIT
-    
-    # 清理当前历史
-    history -c 2>/dev/null || true
-    history -w 2>/dev/null || true
+    echo -e "\n${CYAN}✓ 历史命令功能未被禁用，仅清除了现有记录${NC}\n"
 }
 
 # 显示验证命令
@@ -1234,7 +1109,7 @@ main() {
             local duration=$((end_time - start_time))
             echo -e "${CYAN}总执行时间: ${duration} 秒${NC}"
             
-            # 清理当前历史
+            # 清理当前历史，但不禁用历史功能
             history -c 2>/dev/null || true
             history -w 2>/dev/null || true
             
@@ -1245,7 +1120,7 @@ main() {
             echo -e "${CYAN}${BOLD}Linux系统痕迹清理与管理工具 ${GREEN}${VERSION}${NC}"
             echo -e "${YELLOW}用法: $0 [选项]${NC}\n"
             echo -e "${GREEN}选项:${NC}"
-            echo -e "  ${MAGENTA}-a, --all${NC}     执行所有清理操作"
+            echo -e "  ${MAGENTA}-a, --all${NC}     执行所有清理操作（不禁用历史记录功能）"
             echo -e "  ${MAGENTA}-h, --help${NC}    显示此帮助信息"
             exit 0
             ;;
