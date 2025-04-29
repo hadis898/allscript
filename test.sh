@@ -1,187 +1,169 @@
 #!/bin/bash
 # ==============================================
-# 一键清除linux所有操作痕迹 v2025.04.29
-# 使用方法：sudo ./clear_all_logs_silent.sh
+# 深度清除Linux所有登录IP痕迹 v2025.04.29
+# 使用方法：sudo bash deep_clean_login_records.sh
 # ==============================================
-# 颜色定义（精简）
+
+# 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # 恢复默认颜色
+
 # 检查 root 权限
 if [ "$(id -u)" -ne 0 ]; then
-    echo -e "${RED}❌ 请使用 sudo 或以 root 用户运行此脚本！${NC}" >&2
+    echo -e "${RED}❌ 错误: 请使用 sudo 或以 root 用户运行此脚本！${NC}" >&2
     exit 1
 fi
-# 静默执行函数
-run_silent() {
-    echo -ne "${YELLOW}⏳ $1...${NC}"
-    shift
-    "$@" >/dev/null 2>&1
-    if [ $? -eq 0 ]; then
-        echo -e "\r${GREEN}✅ $1 已完成${NC}"
-    else
-        echo -e "\r${RED}⚠️ $1 失败（但可能不影响整体）${NC}"
-    fi
-}
-# 显示精简标题
+
 echo -e "${GREEN}"
-echo "========================================"
-echo "  系统痕迹清理工具（静默模式）"
-echo "========================================"
+echo "=========================================="
+echo "     深度清除登录IP痕迹工具"
+echo "=========================================="
 echo -e "${NC}"
-# 1. 清除所有用户的 .bash_history 和当前会话的历史
-run_silent "清除命令历史" bash -c '
-    # 清空所有用户的.bash_history文件
-    for user_home in /root /home/*; do
-        if [ -d "$user_home" ]; then
-            user=$(basename "$user_home")
-            # 先将文件清空
-            echo "" > "$user_home/.bash_history"
-            # 然后将文件属性设置为不可变（可选，更彻底）
-            chattr +a "$user_home/.bash_history" 2>/dev/null
-            # 再次写入空内容
-            echo "" > "$user_home/.bash_history"
-            # 恢复文件属性
-            chattr -a "$user_home/.bash_history" 2>/dev/null
-            
-            # 如果有用户正在登录，尝试清除其活动shell的历史
-            for pid in $(pgrep -u "$user" bash); do
-                # 向每个bash进程发送history -c命令
-                su - "$user" -c "kill -USR1 $pid && echo \"history -c && history -w\" >> /proc/$pid/fd/0" 2>/dev/null
-            done
-        fi
-    done
-    
-    # 清除当前shell的历史
-    history -c
-    history -w
-'
 
-# 2. 清除登录日志 - 改进版
-run_silent "清除登录记录" bash -c '
-    # 处理二进制日志文件 - 使用truncate而不是echo
-    # wtmp - 记录所有登录和注销
-    [ -f /var/log/wtmp ] && truncate -s 0 /var/log/wtmp
-    
-    # btmp - 记录失败的登录尝试
-    [ -f /var/log/btmp ] && truncate -s 0 /var/log/btmp
-    
-    # lastlog - 包含每个用户最后登录的信息
-    [ -f /var/log/lastlog ] && truncate -s 0 /var/log/lastlog
-    
-    # utmp - 记录当前登录情况（注意位置可能是/var/run/utmp或/run/utmp）
-    [ -f /var/run/utmp ] && truncate -s 0 /var/run/utmp
-    [ -f /run/utmp ] && truncate -s 0 /run/utmp
-    
-    # 尝试清除备份的日志文件
-    find /var/log -name "wtmp.*" -exec truncate -s 0 {} \; 2>/dev/null
-    find /var/log -name "btmp.*" -exec truncate -s 0 {} \; 2>/dev/null
-    
-    # 重启相关服务以确保更改生效
-    systemctl try-restart systemd-logind.service 2>/dev/null
-'
+# 1. 彻底清除所有标准登录记录文件
+echo -e "${BLUE}[1/5] 清除标准登录记录...${NC}"
 
-# 3. 清除系统日志
-run_silent "清除系统日志" bash -c '
-    journalctl --flush --rotate >/dev/null 2>&1
-    rm -rf /var/log/journal/*
-    systemctl restart systemd-journald >/dev/null 2>&1
-    
-    # 清除更多系统日志文件
-    for log_file in /var/log/auth.log /var/log/syslog /var/log/messages /var/log/secure /var/log/dmesg; do
-        if [ -f "$log_file" ]; then
-            truncate -s 0 "$log_file"
-        fi
-    done
-    
-    # 清除所有.log文件（更彻底，但可能会影响某些应用）
-    find /var/log -type f -name "*.log" -exec truncate -s 0 {} \; 2>/dev/null
-    
-    # 清除audit日志（如果存在）
-    [ -f /var/log/audit/audit.log ] && truncate -s 0 /var/log/audit/audit.log
-    find /var/log/audit -name "audit.log.*" -exec truncate -s 0 {} \; 2>/dev/null
-    
-    # 重启auditd服务（如果存在）
-    systemctl try-restart auditd.service 2>/dev/null
-'
+# 停止可能正在写入日志的服务
+systemctl stop rsyslog 2>/dev/null
+systemctl stop syslog 2>/dev/null
+systemctl stop auditd 2>/dev/null
+systemctl stop systemd-journald 2>/dev/null
 
-# 4. 可选：禁用 SSH 日志
-read -p "$(echo -e "${YELLOW}❓ 是否禁用 SSH 日志记录？(y/N): ${NC}")" choice
-if [[ "$choice" =~ [yY] ]]; then
-    run_silent "禁用 SSH 日志" bash -c '
-        sed -i "s/^#*LogLevel.*/LogLevel QUIET/" /etc/ssh/sshd_config
-        sed -i "s/^#*SyslogFacility.*/SyslogFacility AUTHPRIV/" /etc/ssh/sshd_config
-        systemctl restart sshd >/dev/null 2>&1
-    '
+# 完全删除并重建日志文件 - 使用备份和恢复权限模式
+echo -e "  ${YELLOW}正在处理主要登录记录文件...${NC}"
+for logfile in /var/log/wtmp /var/log/btmp /var/log/lastlog /var/run/utmp /run/utmp; do
+    if [ -f "$logfile" ]; then
+        # 保存原始权限
+        owner=$(stat -c "%U:%G" "$logfile" 2>/dev/null || echo "root:root")
+        perms=$(stat -c "%a" "$logfile" 2>/dev/null || echo "644")
+        
+        # 删除并重建文件
+        rm -f "$logfile"
+        touch "$logfile"
+        chown "$owner" "$logfile" 2>/dev/null
+        chmod "$perms" "$logfile" 2>/dev/null
+        echo -e "  ${GREEN}✓ 已清除: $logfile${NC}"
+    fi
+done
+
+# 处理备份和轮转的日志文件
+echo -e "  ${YELLOW}正在清除日志备份文件...${NC}"
+find /var/log -name "wtmp.*" -type f -delete
+find /var/log -name "btmp.*" -type f -delete
+echo -e "  ${GREEN}✓ 日志备份文件已清除${NC}"
+
+# 2. 处理SSH相关记录
+echo -e "${BLUE}[2/5] 清除SSH记录...${NC}"
+for ssh_log in /var/log/auth.log /var/log/secure /var/log/auth.log.* /var/log/secure.*; do
+    if [ -f "$ssh_log" ]; then
+        > "$ssh_log"
+        echo -e "  ${GREEN}✓ 已清除: $ssh_log${NC}"
+    fi
+done
+
+# 如果存在SSH目录日志
+if [ -d "/var/log/ssh" ]; then
+    find /var/log/ssh -type f -exec truncate -s 0 {} \;
+    echo -e "  ${GREEN}✓ 已清除: /var/log/ssh/ 目录${NC}"
 fi
 
-# 5. 设置HISTSIZE=0来禁用当前会话的历史记录
-run_silent "禁用历史记录功能" bash -c '
-    # 为所有用户添加HISTSIZE=0到bash配置
-    for profile in /etc/profile /etc/bash.bashrc /etc/profile.d/history.sh; do
-        if [ -f "$profile" ] || [ "$profile" = "/etc/profile.d/history.sh" ]; then
-            # 确保目录存在
-            mkdir -p /etc/profile.d/
-            # 添加或更新HISTSIZE设置
-            grep -q "HISTSIZE=" "$profile" 2>/dev/null
-            if [ $? -eq 0 ]; then
-                sed -i "s/^HISTSIZE=.*/HISTSIZE=0/" "$profile"
-                sed -i "s/^HISTFILESIZE=.*/HISTFILESIZE=0/" "$profile"
-            else
-                echo "HISTSIZE=0" >> "$profile"
-                echo "HISTFILESIZE=0" >> "$profile"
-            fi
+# 清除~/.ssh/known_hosts文件中的记录(可选)
+echo -e "  ${YELLOW}正在清除SSH known_hosts文件...${NC}"
+find /root/.ssh /home/*/.ssh -name "known_hosts" -exec truncate -s 0 {} \; 2>/dev/null
+echo -e "  ${GREEN}✓ 已清除known_hosts文件${NC}"
+
+# 3. 处理系统日志中可能包含的IP信息
+echo -e "${BLUE}[3/5] 清除系统日志中的IP痕迹...${NC}"
+
+# 清除journald日志
+rm -rf /var/log/journal/*/* 2>/dev/null
+echo -e "  ${GREEN}✓ 已清除journald日志${NC}"
+
+# 清除其他系统日志
+log_files=(
+    "/var/log/syslog"
+    "/var/log/messages"
+    "/var/log/daemon.log"
+    "/var/log/kern.log"
+    "/var/log/dmesg"
+    "/var/log/faillog"
+    "/var/log/tallylog"
+)
+
+for log in "${log_files[@]}"; do
+    if [ -f "$log" ]; then
+        > "$log"
+        echo -e "  ${GREEN}✓ 已清除: $log${NC}"
+    fi
+    
+    # 处理轮转的日志文件
+    for rotated in "$log".?*; do
+        if [ -f "$rotated" ]; then
+            > "$rotated"
+            echo -e "  ${GREEN}✓ 已清除: $rotated${NC}"
         fi
     done
-    
-    # 设置当前会话的历史大小
-    export HISTSIZE=0
-    export HISTFILESIZE=0
-'
+done
 
-# 6. 清除其他可能的登录记录（acct/psacct，如果安装）
-run_silent "清除进程账户记录" bash -c '
-    # 如果安装了acct/psacct，清理它的记录
-    if command -v accton &>/dev/null; then
-        accton off 2>/dev/null
-        [ -f /var/account/pacct ] && truncate -s 0 /var/account/pacct
-        find /var/account -name "pacct*" -exec truncate -s 0 {} \; 2>/dev/null
-    fi
-'
+# 4. 清除其他可能记录IP的位置
+echo -e "${BLUE}[4/5] 清除其他IP痕迹...${NC}"
 
-# 7. 完全清除wtmp/btmp历史记录的另一种方法
-run_silent "深度清除登录记录" bash -c '
-    # 备份原始文件权限
-    if [ -f /var/log/wtmp ]; then
-        wtmp_perm=$(stat -c "%a" /var/log/wtmp)
-        rm -f /var/log/wtmp
-        touch /var/log/wtmp
-        chmod $wtmp_perm /var/log/wtmp 2>/dev/null
-    fi
-    
-    if [ -f /var/log/btmp ]; then
-        btmp_perm=$(stat -c "%a" /var/log/btmp)
-        rm -f /var/log/btmp
-        touch /var/log/btmp
-        chmod $btmp_perm /var/log/btmp 2>/dev/null
-    fi
-    
-    if [ -f /var/log/lastlog ]; then
-        lastlog_perm=$(stat -c "%a" /var/log/lastlog)
-        rm -f /var/log/lastlog
-        touch /var/log/lastlog
-        chmod $lastlog_perm /var/log/lastlog 2>/dev/null
-    fi
-'
+# 清除历史命令
+history -c 2>/dev/null
+rm -f ~/.bash_history 2>/dev/null
+find /home -name ".bash_history" -exec rm -f {} \; 2>/dev/null
+find /root -name ".bash_history" -exec rm -f {} \; 2>/dev/null
+echo -e "  ${GREEN}✓ 已清除命令历史${NC}"
 
-# 完成提示
-echo -e "\n${GREEN}🎉 所有痕迹已静默清理完毕！${NC}"
-echo -e "${YELLOW}验证命令：${NC}"
-echo -e "  last            # 检查登录记录"
-echo -e "  lastb           # 检查失败的登录尝试"
-echo -e "  lastlog         # 检查用户最后登录信息"
-echo -e "  history         # 检查命令历史"
-echo -e "  journalctl -u sshd _UID=0  # 检查系统日志"
-# 提示重新登录以完全清除历史
-echo -e "\n${YELLOW}注意：为确保命令历史和登录痕迹完全清除，建议在运行此脚本后重启系统。${NC}"
+# acct/psacct进程记账
+if which accton >/dev/null 2>&1; then
+    accton off 2>/dev/null
+    rm -f /var/account/pacct* 2>/dev/null
+    echo -e "  ${GREEN}✓ 已关闭并清除进程记账${NC}"
+fi
+
+# 清除临时文件中可能的IP记录
+find /tmp -type f -exec truncate -s 0 {} \; 2>/dev/null
+find /var/tmp -type f -exec truncate -s 0 {} \; 2>/dev/null
+echo -e "  ${GREEN}✓ 已清除临时文件${NC}"
+
+# 清除audit审计日志
+if [ -d "/var/log/audit" ]; then
+    find /var/log/audit -type f -name "audit.log*" -exec truncate -s 0 {} \;
+    echo -e "  ${GREEN}✓ 已清除审计日志${NC}"
+fi
+
+# 5. 重启记录服务
+echo -e "${BLUE}[5/5] 重启日志服务...${NC}"
+systemctl restart systemd-journald 2>/dev/null
+systemctl restart rsyslog 2>/dev/null
+systemctl restart syslog 2>/dev/null
+systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null
+
+# 清除内存中的缓存
+echo 3 > /proc/sys/vm/drop_caches 2>/dev/null
+sync
+
+echo -e "\n${GREEN}========================================${NC}"
+echo -e "${GREEN}✓ 清除完成! 所有登录IP痕迹已深度清除${NC}"
+echo -e "${GREEN}========================================${NC}"
+
+# 验证部分
+echo -e "\n${YELLOW}验证命令:${NC}"
+echo -e "  ${BLUE}last${NC}               # 应显示无记录"
+echo -e "  ${BLUE}lastb${NC}              # 应显示无记录"
+echo -e "  ${BLUE}lastlog${NC}            # 应显示无最后登录信息"
+echo -e "  ${BLUE}grep -r \"IP地址\" /var/log/${NC}   # 检查IP是否存在于日志"
+
+echo -e "\n${RED}警告: 为确保所有痕迹完全清除，强烈建议现在重启系统!${NC}"
+echo -e "${YELLOW}重启命令: ${BLUE}shutdown -r now${NC}"
+
+# 询问是否立即重启
+read -p "$(echo -e "${YELLOW}是否立即重启系统以完成清除? (y/N): ${NC}")" choice
+if [[ "$choice" =~ [yY] ]]; then
+    echo -e "${GREEN}正在重启系统...${NC}"
+    shutdown -r now
+fi
