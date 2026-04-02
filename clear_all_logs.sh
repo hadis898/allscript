@@ -1,13 +1,8 @@
- #!/bin/bash
+#!/bin/bash
 # ============================================================
 # 一键清除Linux所有操作痕迹
-# By 哈迪斯  |  优化重构版
+# By 哈迪斯
 # ============================================================
-
-# ────────────────────────────────────────────────────────────
-# 全局历史保护标志
-# 脚本启动时默认不清理历史，只在用户选择相关选项时才清理
-# ────────────────────────────────────────────────────────────
 
 # ────────────────────────────────────────────────────────────
 # 颜色 & 常量
@@ -21,13 +16,9 @@ MAGENTA='\033[0;35m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-VERSION="v2025.04.27-fix1"
+VERSION="v2023.04.28"
 
-# ────────────────────────────────────────────────────────────
-# 【改进】历史清理机制
-# 仅在用户实际选择相关操作时才清理历史，
-# 不会在脚本启动时误清所有历史。
-# ────────────────────────────────────────────────────────────
+
 _HISTORY_CLEANED=0
 
 _clean_history_final() {
@@ -63,11 +54,7 @@ check_root() {
     echo -e "${GREEN}✅ 权限检查通过${NC}"
 }
 
-# ────────────────────────────────────────────────────────────
-# 【Bug修复】run_silent：等待实际进程完成后再判断结果
-#   原版进度条是固定时间假进度，进程结束状态判断混乱。
-#   新版：真实等待子进程 → 显示结果，进度条改为spinner。
-# ────────────────────────────────────────────────────────────
+
 run_silent() {
     local description="$1"
     shift
@@ -240,9 +227,7 @@ SCRIPT
 # 2. 清除登录日志
 # ────────────────────────────────────────────────────────────
 clear_login_logs() {
-    # 【Bug修复】将日志列表和auth模式直接写入脚本，
-    #   原版把 auth_patterns 数组传给 heredoc 内的脚本，
-    #   heredoc 是新进程，拿不到父shell的数组变量。
+
     local temp_script
     temp_script=$(mktemp)
 
@@ -552,7 +537,7 @@ for f in "${binary_logs[@]}"; do
         }
         chmod 644 "$f" 2>/dev/null || true
     fi
-    
+
     # 检查是否支持 chattr
     if ! check_chattr_support "$f"; then
         echo "警告：文件系统不支持 chattr +i（$f），尝试其他方法"
@@ -570,7 +555,7 @@ for f in "${binary_logs[@]}"; do
         failed_files+=("$f")
         continue
     fi
-    
+
     # 标准流程：解锁 → 清空 → 加锁
     chattr -i "$f" 2>/dev/null || true
     > "$f" 2>/dev/null || {
@@ -591,7 +576,7 @@ for pattern in "${text_logs[@]}"; do
     # 使用nullglob效果：手动判断文件存在
     for f in $pattern; do
         [ -f "$f" ] || continue
-        
+
         # 检查是否支持 chattr
         if check_chattr_support "$f"; then
             chattr -i "$f" 2>/dev/null || true
@@ -812,21 +797,21 @@ unset HISTFILE
 # 对所有用户追加到 .bashrc 和 .bash_profile
 for user_home in /root /home/*; do
     [ -d "$user_home" ] || continue
-    
+
     for rc_file in "$user_home/.bashrc" "$user_home/.bash_profile" "$user_home/.profile"; do
         [ -f "$rc_file" ] || continue
-        
+
         # 检查是否已包含禁用标记
         if grep -q "$HISTORY_DISABLE_MARKER" "$rc_file" 2>/dev/null; then
             echo "$rc_file 已包含禁用配置，跳过"
             continue
         fi
-        
+
         # 追加禁用配置
         echo -e "\n$HISTORY_DISABLE_SCRIPT_CONTENT" >> "$rc_file"
         echo "已更新 $rc_file"
     done
-    
+
     # 3. 清空所有历史文件
     for hist_file in "$user_home/.bash_history" "$user_home/.zsh_history" \
                      "$user_home/.history" "$user_home/.sh_history" \
@@ -841,7 +826,7 @@ for user_home in /root /home/*; do
         # 设置不可变属性防止写入
         chattr +i "$hist_file" 2>/dev/null || true
     done
-    
+
     # 4. 对历史文件目录加锁（如果有.history目录）
     hist_dir="$user_home/.history.d"
     if [ -d "$hist_dir" ]; then
@@ -860,7 +845,7 @@ fi
 for user in $(cut -d: -f1 /etc/passwd); do
     user_home=$(getent passwd "$user" | cut -d: -f6)
     [ -d "$user_home" ] || continue
-    
+
     for rc in "$user_home/.bashrc" "$user_home/.zshrc"; do
         [ -f "$rc" ] || continue
         if ! grep -q "$HISTORY_DISABLE_MARKER" "$rc" 2>/dev/null; then
@@ -950,7 +935,7 @@ for f in "${binary_logs[@]}"; do
         echo "已重建 $f"
         continue
     }
-    
+
     # 检查并移除不可变属性
     if lsattr "$f" 2>/dev/null | grep -q "....i"; then
         chattr -i "$f" 2>/dev/null && {
@@ -975,7 +960,7 @@ for f in "${binary_logs[@]}"; do
             echo "$f 状态正常，无需恢复"
         fi
     fi
-    
+
     # 确保文件有正确权限
     chmod 644 "$f" 2>/dev/null || true
 done
@@ -986,14 +971,14 @@ echo "--- 恢复文本日志 ---"
 for pattern in "${text_logs[@]}"; do
     for f in $pattern; do
         [ -f "$f" ] || continue
-        
+
         if lsattr "$f" 2>/dev/null | grep -q "....i"; then
             chattr -i "$f" 2>/dev/null && {
                 echo "已解锁 $f"
                 ++restored_count || true
             } || true
         fi
-        
+
         perms=$(stat -c "%a" "$f" 2>/dev/null || echo "???")
         if [ "$perms" = "000" ]; then
             chmod 644 "$f" 2>/dev/null && {
@@ -1250,4 +1235,3 @@ main() {
 }
 
 main "$@"
-
